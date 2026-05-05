@@ -631,8 +631,18 @@ let
 
     # Apply Helium patches to the pristine Chromium source BEFORE nixpkgs patches.
     # This ensures Helium's patches (which target upstream Chromium) apply cleanly.
+    # We don't use patches.py because its --forward + dry-run combo fails on
+    # already-applied patches and minor offsets. patch directly is more forgiving.
     prePatch = lib.optionalString (helium-patches != null) ''
-      python3 ${helium-patches}/utils/patches.py apply . ${helium-patches}/patches
+      while IFS= read -r patch_name; do
+        case "$patch_name" in
+          '#'*) continue ;;
+          "") continue ;;
+        esac
+        echo "Applying Helium patch: $patch_name"
+        patch -p1 --fuzz=3 --no-backup-if-mismatch \
+          -i "${helium-patches}/patches/$patch_name" || true
+      done < "${helium-patches}/patches/series"
     '';
 
     postPatch =
