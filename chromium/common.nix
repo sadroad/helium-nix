@@ -770,7 +770,7 @@ let
         # Helium: apply domain substitution first
         python3 ${helium-patches}/utils/domain_substitution.py apply -r ${helium-patches}/domain_regex.list -f ${helium-patches}/domain_substitution.list -c ./helium-domsubcache.tar.gz .
         # Helium: apply patches from series file (includes ungoogled + all extras)
-        python3 ${helium-patches}/utils/patches.py . ${helium-patches}/patches
+        python3 ${helium-patches}/utils/patches.py apply . ${helium-patches}/patches
       '';
 
     # Sadly, Chromium is not even -fstrict-flex-array=1 clean
