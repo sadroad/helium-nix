@@ -769,8 +769,16 @@ let
       + lib.optionalString (helium-patches != null) ''
         # Helium: apply domain substitution first
         python3 ${helium-patches}/utils/domain_substitution.py apply -r ${helium-patches}/domain_regex.list -f ${helium-patches}/domain_substitution.list -c ./helium-domsubcache.tar.gz .
-        # Helium: apply patches from series file (includes ungoogled + all extras)
-        python3 ${helium-patches}/utils/patches.py apply . ${helium-patches}/patches
+        # Helium: apply patches from series file with fuzz for minor offset mismatches
+        while IFS= read -r patch_name; do
+          case "$patch_name" in
+            '#'*) continue ;;
+            '') continue ;;
+          esac
+          echo "Applying Helium patch: $patch_name"
+          patch -p1 --fuzz=3 --no-backup-if-mismatch --forward \
+            -i "${helium-patches}/patches/$patch_name"
+        done < "${helium-patches}/patches/series"
       '';
 
     # Sadly, Chromium is not even -fstrict-flex-array=1 clean
