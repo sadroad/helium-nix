@@ -773,7 +773,7 @@ let
         while IFS= read -r patch_name; do
           case "$patch_name" in
             '#'*) continue ;;
-            '') continue ;;
+            "") continue ;;
           esac
           echo "Applying Helium patch: $patch_name"
           patch -p1 --fuzz=3 --no-backup-if-mismatch --forward \
