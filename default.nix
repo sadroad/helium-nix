@@ -151,6 +151,8 @@ stdenv.mkDerivation {
     ''
       mkdir -p "$out/bin"
 
+      chmod +x "${browserBinary}" 2>/dev/null || true
+
       makeWrapper "${browserBinary}" "$out/bin/helium" \
         --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}" \
         --add-flags ${lib.escapeShellArg commandLineArgs}
