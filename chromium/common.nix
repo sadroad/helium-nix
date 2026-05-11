@@ -903,7 +903,7 @@ let
         mv $out/bin/clang++ $out/bin/clang++-orig
         cat > $out/bin/clang <<WRAPPER
     #!${buildPackages.bash}/bin/bash
-        if [ -d "${\$CCACHE_DIR:-/var/cache/ccache}" ] && command -v ${buildPackages.ccache}/bin/ccache >/dev/null 2>&1; then
+        if [ -d "$${CCACHE_DIR:-/var/cache/ccache}" ] && command -v ${buildPackages.ccache}/bin/ccache >/dev/null 2>&1; then
           exec ${buildPackages.ccache}/bin/ccache $out/bin/clang-orig "$@"
         else
           exec $out/bin/clang-orig "$@"
@@ -911,7 +911,7 @@ let
         WRAPPER
         cat > $out/bin/clang++ <<WRAPPER
     #!${buildPackages.bash}/bin/bash
-        if [ -d "${\$CCACHE_DIR:-/var/cache/ccache}" ] && command -v ${buildPackages.ccache}/bin/ccache >/dev/null 2>&1; then
+        if [ -d "$${CCACHE_DIR:-/var/cache/ccache}" ] && command -v ${buildPackages.ccache}/bin/ccache >/dev/null 2>&1; then
           exec ${buildPackages.ccache}/bin/ccache $out/bin/clang++-orig "$@"
         else
           exec $out/bin/clang++-orig "$@"
