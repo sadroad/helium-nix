@@ -903,7 +903,9 @@ let
         mv $out/bin/clang++ $out/bin/clang++-orig
         cat > $out/bin/clang <<WRAPPER
     #!${buildPackages.bash}/bin/bash
-        if [ -d "$${CCACHE_DIR:-/var/cache/ccache}" ] && command -v ${buildPackages.ccache}/bin/ccache >/dev/null 2>&1; then
+        if [ -d "/var/cache/ccache" ]; then
+          export CCACHE_DIR=/var/cache/ccache
+          export CCACHE_MAXSIZE=50G
           exec ${buildPackages.ccache}/bin/ccache $out/bin/clang-orig "$@"
         else
           exec $out/bin/clang-orig "$@"
@@ -911,7 +913,9 @@ let
         WRAPPER
         cat > $out/bin/clang++ <<WRAPPER
     #!${buildPackages.bash}/bin/bash
-        if [ -d "$${CCACHE_DIR:-/var/cache/ccache}" ] && command -v ${buildPackages.ccache}/bin/ccache >/dev/null 2>&1; then
+        if [ -d "/var/cache/ccache" ]; then
+          export CCACHE_DIR=/var/cache/ccache
+          export CCACHE_MAXSIZE=50G
           exec ${buildPackages.ccache}/bin/ccache $out/bin/clang++-orig "$@"
         else
           exec $out/bin/clang++-orig "$@"
@@ -1063,15 +1067,27 @@ let
 
       # Create ccache wrapper scripts so CC/CXX are single binary paths
       # (rustc's -Clinker can't handle "ccache /path/to/cc" as one arg).
-      # Ccache transparently passes through if CCACHE_DIR isn't accessible.
+      # Ccache only activates if /var/cache/ccache exists in the sandbox.
       mkdir -p $NIX_BUILD_TOP/.ccache-wrappers
       cat > $NIX_BUILD_TOP/.ccache-wrappers/cc <<'EOF'
     #!${buildPackages.bash}/bin/bash
-    exec ${buildPackages.ccache}/bin/ccache ${stdenv.cc}/bin/cc "$@"
+    if [ -d "/var/cache/ccache" ]; then
+      export CCACHE_DIR=/var/cache/ccache
+      export CCACHE_MAXSIZE=50G
+      exec ${buildPackages.ccache}/bin/ccache ${stdenv.cc}/bin/cc "$@"
+    else
+      exec ${stdenv.cc}/bin/cc "$@"
+    fi
     EOF
       cat > $NIX_BUILD_TOP/.ccache-wrappers/c++ <<'EOF'
     #!${buildPackages.bash}/bin/bash
-    exec ${buildPackages.ccache}/bin/ccache ${stdenv.cc}/bin/c++ "$@"
+    if [ -d "/var/cache/ccache" ]; then
+      export CCACHE_DIR=/var/cache/ccache
+      export CCACHE_MAXSIZE=50G
+      exec ${buildPackages.ccache}/bin/ccache ${stdenv.cc}/bin/c++ "$@"
+    else
+      exec ${stdenv.cc}/bin/c++ "$@"
+    fi
     EOF
       chmod +x $NIX_BUILD_TOP/.ccache-wrappers/cc $NIX_BUILD_TOP/.ccache-wrappers/c++
       export CC=$NIX_BUILD_TOP/.ccache-wrappers/cc
@@ -1097,8 +1113,9 @@ let
     # our Clang is always older than Chromium's and the build logs have a size
     # of approx. 25 MB without this option (and this saves e.g. 66 %).
     env.NIX_CFLAGS_COMPILE = "-Wno-unknown-warning-option -Wno-unused-command-line-argument -Wno-shadow";
-    env.CCACHE_DIR = "/var/cache/ccache";
-    env.CCACHE_MAXSIZE = "50G";
+    # CCACHE_DIR and CCACHE_MAXSIZE are set inside the wrapper scripts.
+    # Do NOT set them as env vars here — if the directory doesn't exist
+    # inside the sandbox, ccache will fail trying to write to it.
     env.CCACHE_TEMPDIR = lib.optionalString enableCcache "$TMPDIR";
     env.BUILD_AR = "$AR_FOR_BUILD";
     env.BUILD_NM = "$NM_FOR_BUILD";
