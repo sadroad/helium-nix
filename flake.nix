@@ -1,6 +1,11 @@
 {
   description = "Helium browser packaged from source for Nix/NixOS";
 
+  nixConfig = {
+    extra-substituters = [ "https://helium-nix.cachix.org" ];
+    extra-trusted-public-keys = [ "helium-nix.cachix.org-1:FIXME_FILL_IN_AFTER_CACHIX_SETUP" ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
