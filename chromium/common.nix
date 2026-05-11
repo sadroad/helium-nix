@@ -864,15 +864,23 @@ let
           --tree ${helium-patches} \
           --chromium-tree .
 
+        # Helium: set platform version (helium_version.py leaves @HELIUM_PLATFORM@
+        # unsubstituted when --platform-tree is not provided)
+        echo "HELIUM_PLATFORM=0" >> chrome/VERSION
+
+        # Helium: copy resources to a writable directory for generation
+        cp -r ${helium-patches}/resources helium-resources
+        chmod -R u+w helium-resources
+
         # Helium: generate scaled product icons
         python3 ${helium-patches}/utils/generate_resources.py \
-          ${helium-patches}/resources/generate_resources.txt \
-          ${helium-patches}/resources
+          helium-resources/generate_resources.txt \
+          helium-resources
 
         # Helium: replace Chromium icons/resources with Helium branding
         python3 ${helium-patches}/utils/replace_resources.py \
-          ${helium-patches}/resources/helium_resources.txt \
-          ${helium-patches}/resources \
+          helium-resources/helium_resources.txt \
+          helium-resources \
           .
 
         unset PYTHONPATH
@@ -888,6 +896,19 @@ let
         buildPackages.rustc.llvmPackages.llvm
         buildPackages.rustc.llvmPackages.stdenv.cc
       ];
+      postBuild = ''
+        mv $out/bin/clang $out/bin/clang-orig
+        mv $out/bin/clang++ $out/bin/clang++-orig
+        cat > $out/bin/clang <<WRAPPER
+    #!${buildPackages.bash}/bin/bash
+    exec ${buildPackages.ccache}/bin/ccache $out/bin/clang-orig "\$@"
+    WRAPPER
+        cat > $out/bin/clang++ <<WRAPPER
+    #!${buildPackages.bash}/bin/bash
+    exec ${buildPackages.ccache}/bin/ccache $out/bin/clang++-orig "\$@"
+    WRAPPER
+        chmod +x $out/bin/clang $out/bin/clang++
+      '';
     };
 
     gnFlags = mkGnFlags (
@@ -1030,6 +1051,21 @@ let
     configurePhase = ''
       runHook preConfigure
 
+      # Create ccache wrapper scripts so CC/CXX are single binary paths
+      # (rustc's -Clinker can't handle "ccache /path/to/cc" as one arg).
+      mkdir -p $NIX_BUILD_TOP/.ccache-wrappers
+      cat > $NIX_BUILD_TOP/.ccache-wrappers/cc <<'EOF'
+    #!${buildPackages.bash}/bin/bash
+    exec ${buildPackages.ccache}/bin/ccache ${stdenv.cc}/bin/cc "$@"
+    EOF
+      cat > $NIX_BUILD_TOP/.ccache-wrappers/c++ <<'EOF'
+    #!${buildPackages.bash}/bin/bash
+    exec ${buildPackages.ccache}/bin/ccache ${stdenv.cc}/bin/c++ "$@"
+    EOF
+      chmod +x $NIX_BUILD_TOP/.ccache-wrappers/cc $NIX_BUILD_TOP/.ccache-wrappers/c++
+      export CC=$NIX_BUILD_TOP/.ccache-wrappers/cc
+      export CXX=$NIX_BUILD_TOP/.ccache-wrappers/c++
+
       # This is to ensure expansion of $out.
       libExecPath="${libExecPath}"
       ${python3.pythonOnBuildForHost}/bin/python3 build/linux/unbundle/replace_gn_files.py --system-libraries ${toString gnSystemLibraries}
@@ -1052,8 +1088,7 @@ let
     env.NIX_CFLAGS_COMPILE = "-Wno-unknown-warning-option -Wno-unused-command-line-argument -Wno-shadow";
     env.CCACHE_DIR = "/home/ashie/.ccache-helium";
     env.CCACHE_MAXSIZE = "50G";
-    env.CC = "ccache ${stdenv.cc}/bin/cc";
-    env.CXX = "ccache ${stdenv.cc}/bin/c++";
+    env.CCACHE_TEMPDIR = "$TMPDIR";
     env.BUILD_AR = "$AR_FOR_BUILD";
     env.BUILD_NM = "$NM_FOR_BUILD";
     env.BUILD_READELF = "$READELF_FOR_BUILD";

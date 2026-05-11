@@ -36,7 +36,7 @@ let
     owner = "imputnet";
     repo = "helium";
     rev = heliumVersion;
-    hash = "sha256-GnHAK6QujiSkSsYW6XfdzUDqGPpbJNNqN0BAQGYHHzU";
+    hash = "sha256-KGBDlnSG26h/cl0y13zP+0d22JjFlHfqrJDxwrs7I04=";
   };
 
   # Helium patches derivation — prepares the Helium config for use
