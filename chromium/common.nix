@@ -700,8 +700,8 @@ let
           "") continue ;;
         esac
         echo "Applying Helium patch: $patch_name"
-        patch -p1 --fuzz=3 --no-backup-if-mismatch \
-          -i "${helium-patches}/patches/$patch_name" || true
+        patch -p1 --fuzz=2 --no-backup-if-mismatch \
+          -i "${helium-patches}/patches/$patch_name"
       done < "${helium-patches}/patches/series"
     '';
 
