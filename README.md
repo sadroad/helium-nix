@@ -6,39 +6,6 @@ Built on nixpkgs' Chromium infrastructure. Helium replaces the ungoogled patch l
 
 **Helium 0.12.1 / Chromium 148.0.7778.96**
 
-## Build
-
-```bash
-nix build
-```
-
-### Requirements
-
-- 16+ GB RAM (32 GB recommended)
-- 100+ GB disk space
-- Several hours (first build)
-
-### Ccache (faster rebuilds)
-
-```bash
-sudo mkdir -p /var/cache/ccache
-sudo chown root:nixbld /var/cache/ccache
-sudo chmod 770 /var/cache/ccache
-```
-
-Add to your NixOS config:
-
-```nix
-nix.settings.extra-sandbox-paths = [ "/var/cache/ccache" ];
-```
-
-Then build with ccache:
-
-```bash
-nix build .#helium-ccache
-```
-
-
 ## Install
 
 ### Try it
@@ -65,11 +32,13 @@ environment.systemPackages = [
 
 ### Home Manager
 
-Add the flake input and use the overlay:
+Add the flake input:
 
 ```nix
 inputs.helium-nix.url = "github:penal-colony/helium-nix";
 ```
+
+Then add the package directly:
 
 ```nix
 home.packages = [
@@ -77,7 +46,7 @@ home.packages = [
 ];
 ```
 
-Or with the overlay:
+Or use the overlay:
 
 ```nix
 nixpkgs.overlays = [ inputs.helium-nix.overlays.default ];
@@ -93,6 +62,42 @@ nix.settings = {
   substituters = [ "https://helium-nix.cachix.org" ];
   trusted-public-keys = [ "helium-nix.cachix.org-1:a8YPjt9O4GPyX0u3gjg/aWpb14teU9aRiSG/MOaSFgw=" ];
 };
+```
+
+## Building from source
+
+```bash
+nix build
+```
+
+### Requirements
+
+- 16+ GB RAM (32 GB recommended)
+- 100+ GB disk space
+- Several hours (first build, varies by hardware)
+
+### Ccache (faster rebuilds)
+
+Ccache is built into the default build. If `CCACHE_DIR` exists, it's used automatically.
+
+Set up the cache directory:
+
+```bash
+sudo mkdir -p /var/cache/ccache
+sudo chown root:nixbld /var/cache/ccache
+sudo chmod 770 /var/cache/ccache
+```
+
+Allow it in the Nix sandbox:
+
+```nix
+nix.settings.extra-sandbox-paths = [ "/var/cache/ccache" ];
+```
+
+Then build as normal:
+
+```bash
+nix build
 ```
 
 ## Updating
