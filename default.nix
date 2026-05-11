@@ -65,7 +65,7 @@ let
     owner = "imputnet";
     repo = "helium-linux";
     rev = "9d60bc9ff85958cba093c267b741fa5f2f081b97";
-    hash = ""; # TODO: fill in after first build
+    hash = "sha256-flPvX38r0QyGJ5vzsbq8cMq2pK0FuXFXMK2tUGrz+II=";
   };
   helium-linux-patches = "${helium-linux-src}/patches/helium/linux";
 
