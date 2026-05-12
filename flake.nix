@@ -28,5 +28,8 @@
       overlays.default = final: prev: {
         helium = final.callPackage ./default.nix { };
       };
+
+      homeManagerModules.helium = import ./modules/home-manager.nix { inherit self; };
+      nixosModules.helium = import ./modules/nixos.nix;
     };
 }
