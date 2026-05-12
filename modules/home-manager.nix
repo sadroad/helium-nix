@@ -5,7 +5,6 @@
 let
   cfg = config.programs.helium;
 
-  # Architecture parameters for extension fetch URLs
   archInfo =
     let
       platform = pkgs.stdenv.hostPlatform;
@@ -20,7 +19,6 @@ let
       naclArch = "x86-64";
     };
 
-  # Fetch a Chromium extension by ID from the Chrome Web Store
   fetchExtension =
     { id, hash }:
     pkgs.fetchurl {
@@ -29,7 +27,6 @@ let
       inherit hash;
     };
 
-  # Unpack a .crx extension into a directory Chromium can load
   unpackExtension =
     { id, hash }:
     pkgs.runCommand "helium-ext-${id}"
@@ -40,7 +37,6 @@ let
       ''
         mkdir -p $out
         unzip -q $src -d $out || true
-        # Fail if unzip produced nothing (likely corrupt CRX)
         [ -n "$(ls -A $out 2>/dev/null)" ] || { echo "ERROR: unpacking $src produced no files" >&2; exit 1; }
         rm -rf $out/_metadata
       '';
@@ -50,7 +46,6 @@ let
     unpacked = unpackExtension { inherit (spec) id hash; };
   }) cfg.extensions;
 
-  # Extensions need to be allowlisted so Chromium doesn't disable them
   policyAttrs = {
     ExtensionInstallAllowlist = map (ext: ext.id) cfg.extensions;
   } // cfg.extraPolicies;
@@ -63,10 +58,8 @@ let
 
   configDir = "${config.xdg.configHome}/net.imput.helium";
 
-  # Write preferences to a static JSON file so the wrapper can merge on every launch
   preferencesJson = pkgs.writeText "helium-preferences.json" (builtins.toJSON cfg.preferences);
 
-  # Merge preferences into the profile before launching
   mergePrefs =
     if cfg.preferences != { } then
       ''
@@ -85,8 +78,6 @@ let
     else
       "";
 
-  # Wrap helium with user-specified flags + extensions
-  # We re-wrap because the base package already has a wrapper from default.nix
   heliumConfigured = pkgs.symlinkJoin {
     name = "helium-configured";
     paths = [ cfg.package ];
@@ -102,7 +93,6 @@ let
     '';
   };
 
-  # Recursive type for JSON-compatible values
   jsonValue = lib.types.mkOptionType {
     name = "jsonValue";
     description = "JSON-compatible value (bool, int, float, str, list, attrset, or null)";
@@ -208,13 +198,6 @@ in
   config = lib.mkIf cfg.enable {
     home.packages = [ heliumConfigured ];
 
-    # Policies are written to /etc/chromium/policies/managed/ via the NixOS module.
-    # Chromium hardcodes /etc/chromium/policies as the only policy source on Linux.
-    # The user config dir (~/.config/net.imput.helium/policies/) is NOT read by Chromium.
-
-    # Preferences are merged on every launch via the wrapper's --run hook.
-
-    # Set Helium as the default browser
     xdg.mimeApps = lib.mkIf cfg.defaultBrowser {
       enable = true;
       defaultApplications = {
