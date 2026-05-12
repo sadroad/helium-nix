@@ -40,6 +40,8 @@ let
       ''
         mkdir -p $out
         unzip -q $src -d $out || true
+        # Fail if unzip produced nothing (likely corrupt CRX)
+        [ -n "$(ls -A $out 2>/dev/null)" ] || { echo "ERROR: unpacking $src produced no files" >&2; exit 1; }
         rm -rf $out/_metadata
       '';
 
@@ -72,12 +74,12 @@ let
         prefs_file="$prefs_dir/Preferences"
         ${pkgs.coreutils}/bin/mkdir -p "$prefs_dir"
         if [ -f "$prefs_file" ]; then
-          merged=$(${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$prefs_file" ${preferencesJson})
+          merged=$(${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$prefs_file" "${preferencesJson}" 2>/dev/null)
           if [ -n "$merged" ]; then
-            printf '%s\n' "$merged" > "$prefs_file"
+            printf '%s\n' "$merged" > "$prefs_file.tmp" && ${pkgs.coreutils}/bin/mv "$prefs_file.tmp" "$prefs_file"
           fi
         else
-          ${pkgs.coreutils}/bin/cp ${preferencesJson} "$prefs_file"
+          ${pkgs.coreutils}/bin/cp "${preferencesJson}" "$prefs_file"
         fi
       ''
     else
@@ -103,9 +105,10 @@ let
   # Recursive type for JSON-compatible values
   jsonValue = lib.types.mkOptionType {
     name = "jsonValue";
-    description = "JSON-compatible value (bool, int, float, str, list, or attrset)";
+    description = "JSON-compatible value (bool, int, float, str, list, attrset, or null)";
     check = v:
-      builtins.isBool v
+      v == null
+      || builtins.isBool v
       || builtins.isInt v
       || builtins.isFloat v
       || builtins.isString v
@@ -206,11 +209,10 @@ in
     home.packages = [ heliumConfigured ];
 
     # Policies are written to /etc/chromium/policies/managed/ via the NixOS module.
-    # The user config dir is NOT a valid policy source for Chromium.
-    # xdg.configFile."net.imput.helium/policies/managed/helium-nix.json".text = cfg.finalPolicyJson;
+    # Chromium hardcodes /etc/chromium/policies as the only policy source on Linux.
+    # The user config dir (~/.config/net.imput.helium/policies/) is NOT read by Chromium.
 
-    # Preferences are now merged on every launch via the wrapper script
-    # (no activation hook needed)
+    # Preferences are merged on every launch via the wrapper's --run hook.
 
     # Set Helium as the default browser
     xdg.mimeApps = lib.mkIf cfg.defaultBrowser {
