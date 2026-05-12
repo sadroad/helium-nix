@@ -102,7 +102,7 @@ let
   callPackage = newScope chromium;
 
   chromium = rec {
-    inherit (llvmStdenv) stdenv;
+    stdenv = llvmStdenv;
     inherit upstream-info;
 
     mkChromiumDerivation = callPackage ./chromium/common.nix {
