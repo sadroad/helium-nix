@@ -142,7 +142,7 @@ llvmStdenv.mkDerivation {
         --add-flags ${lib.escapeShellArg commandLineArgs}
 
       ed -v -s "$out/bin/helium" << EOF
-      2i
+      2c
 
       if [ -x "/run/wrappers/bin/${sandboxExecutableName}" ]
       then
