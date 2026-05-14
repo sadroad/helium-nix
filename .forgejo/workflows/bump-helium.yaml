@@ -49,6 +49,8 @@ jobs:
 
       - name: Update info.json if chromium changed
         if: steps.check.outputs.skip != 'true'
+        env:
+          PATH: /run/current-system/sw/bin:/usr/bin:/bin:/usr/local/bin
         run: |
           CHROMIUM=$(grep 'chromiumVersion' default.nix | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
           INFO_VERSION=$(jq -r '.chromium.version' info.json)
@@ -66,6 +68,8 @@ jobs:
 
       - name: Create PR
         if: steps.check.outputs.skip != 'true'
+        env:
+          PATH: /run/current-system/sw/bin:/usr/bin:/bin:/usr/local/bin
         run: |
           set -e
           LATEST=${{ steps.check.outputs.latest }}
