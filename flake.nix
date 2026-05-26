@@ -14,11 +14,15 @@
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      pkgsFor = system: import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+      };
     in
     {
       packages = forAllSystems (system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = pkgsFor system;
         in
         {
           helium = pkgs.callPackage ./default.nix { };
@@ -33,14 +37,14 @@
         (import ./tests {
           inherit self system;
           lib = nixpkgs.lib;
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = pkgsFor system;
         }).checks);
 
       integrationChecks = forAllSystems (system:
         (import ./tests {
           inherit self system;
           lib = nixpkgs.lib;
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = pkgsFor system;
         }).integrationChecks);
 
       homeManagerModules.helium = import ./modules/home-manager.nix { inherit self; };

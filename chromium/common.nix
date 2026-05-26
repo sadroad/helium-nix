@@ -1019,17 +1019,17 @@ let
         enable_hangout_services_extension = true;
         ffmpeg_branding = "Chrome";
       }
-      // lib.optionalAttrs stdenv.hostPlatform.isAarch64 {
-        # Enable v4l2 video decoder for hardware acceleratation on aarch64:
-        use_vaapi = false;
-        use_v4l2_codec = true;
-      }
       // lib.optionalAttrs pulseSupport {
         use_pulseaudio = true;
         link_pulseaudio = true;
       }
       // lib.optionalAttrs (ungoogled && helium-patches == null) (lib.importTOML ./ungoogled-flags.toml)
       // lib.optionalAttrs (helium-patches != null) (lib.importTOML ../helium-flags.toml)
+      // lib.optionalAttrs stdenv.hostPlatform.isAarch64 {
+        # Enable the V4L2 video decoder for hardware acceleration on aarch64.
+        use_vaapi = false;
+        use_v4l2_codec = true;
+      }
       // (extraAttrs.gnFlags or { })
     );
 
