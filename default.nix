@@ -100,16 +100,18 @@ let
     ungoogled-chromium = { rev, hash }: helium-patches;
   };
 
+  browserLibExecDir = "libexec/helium";
   sandboxExecutableName = chromium.browser.passthru.sandboxExecutableName;
 
   chromiumWV =
-    let browser = chromium.browser;
+    let
+      browser = chromium.browser;
     in if enableWideVine then
       runCommand (browser.name + "-wv") { version = browser.version; } ''
         mkdir -p $out
         cp -a ${browser}/* $out/
-        chmod u+w $out/libexec/chromium
-        cp -a ${widevine-cdm}/share/google/chrome/WidevineCdm $out/libexec/chromium/
+        chmod u+w "$out/${browserLibExecDir}"
+        cp -a ${widevine-cdm}/share/google/chrome/WidevineCdm "$out/${browserLibExecDir}/"
       ''
     else browser;
 
@@ -129,7 +131,7 @@ llvmStdenv.mkDerivation {
 
   buildCommand =
     let
-      browserBinary = "${chromiumWV}/libexec/helium/helium";
+      browserBinary = "${chromiumWV}/${browserLibExecDir}/helium";
       libPath = lib.makeLibraryPath [ libva pipewire wayland gtk3 gtk4 libkrb5 ];
     in
     ''

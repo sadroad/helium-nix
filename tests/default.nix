@@ -447,6 +447,15 @@ in
       pkgs.runCommand "test-widevine-override" { } ''
         # Force evaluation: reference the store path so the derivation can't be lazy-skipped
         [ -d "${wv}/bin" ] || { echo "FAIL: widevine override has no bin directory"; exit 1; }
+        browser_binary=$(
+          grep -o \
+            '/nix/store/[^"]*-helium-unwrapped-[^"]*-wv/libexec/helium/helium' \
+            "${wv}/bin/helium" \
+            || true
+        )
+        [ -n "$browser_binary" ] || { echo "FAIL: widevine wrapper does not reference the unwrapped helium binary"; exit 1; }
+        widevine_dir="$(dirname "$browser_binary")/WidevineCdm"
+        [ -d "$widevine_dir" ] || { echo "FAIL: WidevineCdm is not installed next to the unwrapped helium binary"; exit 1; }
         echo "OK"
         touch $out
       '';
