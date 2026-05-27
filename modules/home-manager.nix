@@ -42,7 +42,8 @@ let
         crx = fetchExtension { inherit id hash; };
       }
       ''
-        version="$(${pkgs.unzip}/bin/unzip -p "$crx" manifest.json 2>/dev/null | ${pkgs.jq}/bin/jq -r '.version')"
+        manifest="$(${pkgs.unzip}/bin/unzip -p "$crx" manifest.json 2>/dev/null || true)"
+        version="$(printf '%s' "$manifest" | ${pkgs.jq}/bin/jq -r '.version' 2>/dev/null || true)"
         if [ -z "$version" ] || [ "$version" = "null" ]; then
           echo "ERROR: failed to read extension version from $crx" >&2
           exit 1
