@@ -1,6 +1,11 @@
 { self }:
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.programs.helium;
@@ -9,15 +14,18 @@ let
     let
       platform = pkgs.stdenv.hostPlatform;
     in
-    if platform.isAarch64 then {
-      arch = "arm64";
-      osArch = "aarch64";
-      naclArch = "aarch64";
-    } else {
-      arch = "x64";
-      osArch = "x86_64";
-      naclArch = "x86-64";
-    };
+    if platform.isAarch64 then
+      {
+        arch = "arm64";
+        osArch = "aarch64";
+        naclArch = "aarch64";
+      }
+    else
+      {
+        arch = "x64";
+        osArch = "x86_64";
+        naclArch = "x86-64";
+      };
 
   fetchExtension =
     { id, hash }:
@@ -27,34 +35,37 @@ let
       inherit hash;
     };
 
-  unpackExtension =
+  extensionJsonFile =
     { id, hash }:
-    pkgs.runCommand "helium-ext-${id}"
+    pkgs.runCommand "helium-ext-${id}.json"
       {
-        nativeBuildInputs = [ pkgs.unzip ];
-        src = fetchExtension { inherit id hash; };
+        crx = fetchExtension { inherit id hash; };
       }
       ''
-        mkdir -p $out
-        unzip -q $src -d $out || true
-        [ -n "$(ls -A $out 2>/dev/null)" ] || { echo "ERROR: unpacking $src produced no files" >&2; exit 1; }
-        rm -rf $out/_metadata
+        version="$(${pkgs.unzip}/bin/unzip -p "$crx" manifest.json 2>/dev/null | ${pkgs.jq}/bin/jq -r '.version')"
+        if [ -z "$version" ] || [ "$version" = "null" ]; then
+          echo "ERROR: failed to read extension version from $crx" >&2
+          exit 1
+        fi
+
+        ${pkgs.jq}/bin/jq -n \
+          --arg crx "$crx" \
+          --arg version "$version" \
+          '{ external_crx: $crx, external_version: $version }' \
+          > "$out"
       '';
 
-  resolvedExtensions = map (spec: {
-    inherit (spec) id;
-    unpacked = unpackExtension { inherit (spec) id hash; };
-  }) cfg.extensions;
+  extensionFiles = lib.listToAttrs (
+    map (spec: {
+      name = "${configDir}/External Extensions/${spec.id}.json";
+      value.source = extensionJsonFile { inherit (spec) id hash; };
+    }) cfg.extensions
+  );
 
   policyAttrs = {
     ExtensionInstallAllowlist = map (ext: ext.id) cfg.extensions;
-  } // cfg.extraPolicies;
-
-  loadExtensionFlags =
-    if resolvedExtensions != [ ] then
-      [ "--load-extension=${lib.concatStringsSep "," (map (ext: "${ext.unpacked}") resolvedExtensions)}" ]
-    else
-      [ ];
+  }
+  // cfg.extraPolicies;
 
   configDir = "${config.xdg.configHome}/net.imput.helium";
 
@@ -84,18 +95,17 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/helium \
-        ${lib.concatMapStringsSep " \\\n        " (f: "--add-flags ${lib.escapeShellArg f}") (
-          loadExtensionFlags
-          ++ cfg.extraFlags
-        )}${lib.optionalString (cfg.preferences != { })
-          " --run ${lib.escapeShellArg mergePrefsScript}"}
+        ${
+          lib.concatMapStringsSep " \\\n        " (f: "--add-flags ${lib.escapeShellArg f}") cfg.extraFlags
+        }${lib.optionalString (cfg.preferences != { }) " --run ${lib.escapeShellArg mergePrefsScript}"}
     '';
   };
 
   jsonValue = lib.types.mkOptionType {
     name = "jsonValue";
     description = "JSON-compatible value (bool, int, float, str, list, attrset, or null)";
-    check = v:
+    check =
+      v:
       v == null
       || builtins.isBool v
       || builtins.isInt v
@@ -144,7 +154,10 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "Additional command-line flags passed to the Helium wrapper.";
-      example = [ "--force-dark-mode" "--incognito" ];
+      example = [
+        "--force-dark-mode"
+        "--incognito"
+      ];
     };
 
     extraPolicies = lib.mkOption {
@@ -196,6 +209,7 @@ in
 
   config = lib.mkIf cfg.enable {
     home.packages = [ heliumConfigured ];
+    home.file = extensionFiles;
 
     xdg.mimeApps = lib.mkIf cfg.defaultBrowser {
       enable = true;

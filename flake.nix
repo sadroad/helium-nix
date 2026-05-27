@@ -3,49 +3,71 @@
 
   nixConfig = {
     extra-substituters = [ "https://helium-nix.cachix.org" ];
-    extra-trusted-public-keys = [ "helium-nix.cachix.org-1:a8YPjt9O4GPyX0u3gjg/aWpb14teU9aRiSG/MOaSFgw=" ];
+    extra-trusted-public-keys = [
+      "helium-nix.cachix.org-1:a8YPjt9O4GPyX0u3gjg/aWpb14teU9aRiSG/MOaSFgw="
+    ];
   };
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
-      supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      pkgsFor = system: import nixpkgs {
-        inherit system;
-        config.allowUnfree = true;
-      };
+      pkgsFor =
+        system:
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
     in
     {
-      packages = forAllSystems (system:
+      formatter = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.nixfmt-tree
+      );
+
+      packages = forAllSystems (
+        system:
         let
           pkgs = pkgsFor system;
         in
         {
           helium = pkgs.callPackage ./default.nix { };
           default = self.packages.${system}.helium;
-        });
+        }
+      );
 
       overlays.default = final: prev: {
         inherit (self.packages.${final.stdenv.hostPlatform.system}) helium;
       };
 
-      checks = forAllSystems (system:
+      checks = forAllSystems (
+        system:
         (import ./tests {
           inherit self system;
-          lib = nixpkgs.lib;
+          inherit (nixpkgs) lib;
           pkgs = pkgsFor system;
-        }).checks);
+        }).checks
+      );
 
-      integrationChecks = forAllSystems (system:
+      integrationChecks = forAllSystems (
+        system:
         (import ./tests {
           inherit self system;
-          lib = nixpkgs.lib;
+          inherit (nixpkgs) lib;
           pkgs = pkgsFor system;
-        }).integrationChecks);
+        }).integrationChecks
+      );
 
       homeManagerModules.helium = import ./modules/home-manager.nix { inherit self; };
       nixosModules = {

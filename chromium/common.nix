@@ -218,15 +218,13 @@ let
       let
         name = platform.parsed.cpu.name;
       in
-      (
-        {
-          "x86_64" = "x64";
-          "i686" = "x86";
-          "arm" = "arm";
-          "aarch64" = "arm64";
-        }
-        .${platform.parsed.cpu.name} or (throw "no chromium Rosetta Stone entry for cpu: ${name}")
-      );
+      {
+        "x86_64" = "x64";
+        "i686" = "x86";
+        "arm" = "arm";
+        "aarch64" = "arm64";
+      }
+      .${platform.parsed.cpu.name} or (throw "no chromium Rosetta Stone entry for cpu: ${name}");
     os =
       platform:
       if platform.isLinux then
@@ -291,7 +289,9 @@ let
   );
 
   base = rec {
-    pname = "${lib.optionalString (ungoogled && helium-patches == null) "ungoogled-"}${packageName}-unwrapped";
+    pname = "${
+      lib.optionalString (ungoogled && helium-patches == null) "ungoogled-"
+    }${packageName}-unwrapped";
     inherit (upstream-info) version;
     inherit packageName buildType buildPath;
 
@@ -405,66 +405,65 @@ let
     ]
     ++ lib.optional pulseSupport libpulseaudio;
 
-    buildInputs = [
-    ]
-    ++ lib.optionals needsLibpng [
-      (libpng.override { apngSupport = false; }) # https://bugs.chromium.org/p/chromium/issues/detail?id=752403
-    ]
-    ++ [
-      (libopus.override { withCustomModes = true; })
-      bzip2
-      flac
-      speex
-      libevent
-      expat
-      libjpeg
-      snappy
-      libcap
-      minizip
-      libwebp
-      libusb1
-      re2
-      ffmpeg
-      libxslt
-      libxml2
-      nasm
-      nspr
-      nss
-      util-linux
-      alsa-lib
-      libkrb5
-      glib
-      gtk3
-      dbus-glib
-      libxscrnsaver
-      libxcursor
-      libxtst
-      libxshmfence
-      libGLU
-      libGL
-      dri-pkgconfig-stub
-      libgbm
-      pciutils
-      protobuf
-      speechd-minimal
-      libxdamage
-      at-spi2-core
-      pipewire
-      libva
-      libdrm
-      wayland
-      libxkbcommon
-      curl
-      libepoxy
-      libffi
-      libevdev
-    ]
-    ++ lib.optional systemdSupport systemdLibs
-    ++ lib.optionals cupsSupport [
-      libgcrypt
-      cups
-    ]
-    ++ lib.optional pulseSupport libpulseaudio;
+    buildInputs =
+      lib.optionals needsLibpng [
+        (libpng.override { apngSupport = false; }) # https://bugs.chromium.org/p/chromium/issues/detail?id=752403
+      ]
+      ++ [
+        (libopus.override { withCustomModes = true; })
+        bzip2
+        flac
+        speex
+        libevent
+        expat
+        libjpeg
+        snappy
+        libcap
+        minizip
+        libwebp
+        libusb1
+        re2
+        ffmpeg
+        libxslt
+        libxml2
+        nasm
+        nspr
+        nss
+        util-linux
+        alsa-lib
+        libkrb5
+        glib
+        gtk3
+        dbus-glib
+        libxscrnsaver
+        libxcursor
+        libxtst
+        libxshmfence
+        libGLU
+        libGL
+        dri-pkgconfig-stub
+        libgbm
+        pciutils
+        protobuf
+        speechd-minimal
+        libxdamage
+        at-spi2-core
+        pipewire
+        libva
+        libdrm
+        wayland
+        libxkbcommon
+        curl
+        libepoxy
+        libffi
+        libevdev
+      ]
+      ++ lib.optional systemdSupport systemdLibs
+      ++ lib.optionals cupsSupport [
+        libgcrypt
+        cups
+      ]
+      ++ lib.optional pulseSupport libpulseaudio;
 
     patches = [
       ./patches/cross-compile.patch

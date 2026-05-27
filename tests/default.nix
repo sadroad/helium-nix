@@ -1,4 +1,9 @@
-{ self, pkgs, lib, system }:
+{
+  self,
+  pkgs,
+  lib,
+  system,
+}:
 
 let
   heliumPkg = self.packages.${system}.helium;
@@ -14,7 +19,8 @@ let
     inherit system;
     modules = [
       # Minimal boot stub so NixOS eval doesn't complain
-      { boot.loader.grub.enable = false;
+      {
+        boot.loader.grub.enable = false;
         fileSystems."/".device = "nodev";
         fileSystems."/".fsType = "ext4";
         system.stateVersion = "25.05";
@@ -25,10 +31,10 @@ let
           type = lib.types.submodule {
             options.users = lib.mkOption {
               type = lib.types.lazyAttrsOf lib.types.unspecified;
-              default = {};
+              default = { };
             };
           };
-          default = {};
+          default = { };
         };
       }
       self.nixosModules.helium
@@ -39,7 +45,7 @@ let
             programs.helium = {
               enable = true;
               finalPolicyJson = builtins.toJSON {
-                ExtensionInstallAllowlist = [];
+                ExtensionInstallAllowlist = [ ];
                 PasswordManagerEnabled = false;
                 BrowserSignin = 0;
               };
@@ -61,7 +67,10 @@ let
             programs.helium = {
               enable = true;
               extensions = [
-                { id = "cjpalhdlnbpafiamejdnhcphjbkeiagm"; hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; }
+                {
+                  id = "cjpalhdlnbpafiamejdnhcphjbkeiagm";
+                  hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+                }
               ];
               finalPolicyJson = builtins.toJSON {
                 ExtensionInstallAllowlist = [ "cjpalhdlnbpafiamejdnhcphjbkeiagm" ];
@@ -82,7 +91,8 @@ let
 
   hmModule = import ../modules/home-manager.nix { inherit self; };
 
-  evalHMModule = heliumConfig:
+  evalHMModule =
+    heliumConfig:
     lib.evalModules {
       modules = [
         # Stub out everything the HM module reads from the HM module system
@@ -91,10 +101,14 @@ let
             type = lib.types.submodule {
               options.packages = lib.mkOption {
                 type = lib.types.listOf lib.types.unspecified;
-                default = [];
+                default = [ ];
+              };
+              options.file = lib.mkOption {
+                type = lib.types.attrsOf lib.types.unspecified;
+                default = { };
               };
             };
-            default = {};
+            default = { };
           };
           options.xdg = lib.mkOption {
             type = lib.types.submodule {
@@ -106,21 +120,32 @@ let
                 mimeApps = lib.mkOption {
                   type = lib.types.submodule {
                     options = {
-                      enable = lib.mkOption { type = lib.types.bool; default = false; };
-                      defaultApplications = lib.mkOption { type = lib.types.attrsOf lib.types.unspecified; default = {}; };
+                      enable = lib.mkOption {
+                        type = lib.types.bool;
+                        default = false;
+                      };
+                      defaultApplications = lib.mkOption {
+                        type = lib.types.attrsOf lib.types.unspecified;
+                        default = { };
+                      };
                     };
                   };
-                  default = {};
+                  default = { };
                 };
               };
             };
-            default = {};
+            default = { };
           };
           config = {
-            home.packages = [];
-            xdg.configHome = "/home/test/.config";
-            xdg.mimeApps.enable = false;
-            xdg.mimeApps.defaultApplications = {};
+            home.packages = [ ];
+            home.file = { };
+            xdg = {
+              configHome = "/home/test/.config";
+              mimeApps = {
+                enable = false;
+                defaultApplications = { };
+              };
+            };
           };
         }
         hmModule
@@ -179,40 +204,53 @@ in
 
     # ── NixOS module ──
 
-    nixos-module-evaluates = pkgs.runCommand "test-nixos-module-evaluates" {
-      # Force evaluation of environment.etc — if nixosConfig failed to evaluate,
-      # this would error at import time
-      _ = builtins.seq nixosConfig.config.environment.etc null;
-    } ''
-      echo "NixOS module evaluation succeeded"
-      touch $out
-    '';
+    nixos-module-evaluates =
+      pkgs.runCommand "test-nixos-module-evaluates"
+        {
+          # Force evaluation of environment.etc — if nixosConfig failed to evaluate,
+          # this would error at import time
+          _ = builtins.seq nixosConfig.config.environment.etc null;
+        }
+        ''
+          echo "NixOS module evaluation succeeded"
+          touch $out
+        '';
 
-    nixos-generates-policy-files = pkgs.runCommand "test-nixos-policy-files" {
-      # Validate at Nix eval time using builtins — avoids interpolating JSON text into bash
-      _ = builtins.seq (
-        assert builtins.stringLength nixosConfig.config.environment.etc."chromium/policies/managed/helium-alice.json".text > 0;
-        assert builtins.stringLength nixosConfig.config.environment.etc."chromium/policies/managed/helium-bob.json".text > 0;
-        true
-      ) null;
-    } ''
-      echo "OK"
-      touch $out
-    '';
+    nixos-generates-policy-files =
+      pkgs.runCommand "test-nixos-policy-files"
+        {
+          # Validate at Nix eval time using builtins — avoids interpolating JSON text into bash
+          _ = builtins.seq (
+            assert
+              builtins.stringLength
+                nixosConfig.config.environment.etc."chromium/policies/managed/helium-alice.json".text > 0;
+            assert
+              builtins.stringLength
+                nixosConfig.config.environment.etc."chromium/policies/managed/helium-bob.json".text > 0;
+            true
+          ) null;
+        }
+        ''
+          echo "OK"
+          touch $out
+        '';
 
-    nixos-extensions-merge-policies = pkgs.runCommand "test-nixos-extensions-merge-policies" {
-      policy = nixosConfig.config.environment.etc."chromium/policies/managed/helium-dave.json".text;
-    } ''
-      [ -n "$policy" ] || { echo "FAIL: no policy file generated for dave"; exit 1; }
-      echo "$policy" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | index("cjpalhdlnbpafiamejdnhcphjbkeiagm") != null' > /dev/null \
-        || { echo "FAIL: extension ID not in dave's allowlist"; exit 1; }
-      echo "$policy" | ${pkgs.jq}/bin/jq -e '.PasswordManagerEnabled == false' > /dev/null \
-        || { echo "FAIL: PasswordManagerEnabled not false in dave's policy"; exit 1; }
-      echo "$policy" | ${pkgs.jq}/bin/jq -e '.BlockThirdPartyCookies == true' > /dev/null \
-        || { echo "FAIL: BlockThirdPartyCookies not true in dave's policy"; exit 1; }
-      echo "OK"
-      touch $out
-    '';
+    nixos-extensions-merge-policies =
+      pkgs.runCommand "test-nixos-extensions-merge-policies"
+        {
+          policy = nixosConfig.config.environment.etc."chromium/policies/managed/helium-dave.json".text;
+        }
+        ''
+          [ -n "$policy" ] || { echo "FAIL: no policy file generated for dave"; exit 1; }
+          echo "$policy" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | index("cjpalhdlnbpafiamejdnhcphjbkeiagm") != null' > /dev/null \
+            || { echo "FAIL: extension ID not in dave's allowlist"; exit 1; }
+          echo "$policy" | ${pkgs.jq}/bin/jq -e '.PasswordManagerEnabled == false' > /dev/null \
+            || { echo "FAIL: PasswordManagerEnabled not false in dave's policy"; exit 1; }
+          echo "$policy" | ${pkgs.jq}/bin/jq -e '.BlockThirdPartyCookies == true' > /dev/null \
+            || { echo "FAIL: BlockThirdPartyCookies not true in dave's policy"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
 
     nixos-skips-disabled-users = pkgs.runCommand "test-nixos-skips-disabled" { } ''
       if echo "${lib.concatStringsSep " " (builtins.attrNames nixosConfig.config.environment.etc)}" | grep -q "helium-charlie"; then
@@ -223,127 +261,192 @@ in
       touch $out
     '';
 
-    nixos-policy-content-alice = pkgs.runCommand "test-nixos-policy-alice" {
-      policy = nixosConfig.config.environment.etc."chromium/policies/managed/helium-alice.json".text;
-    } ''
-      POLICY="$policy"
-      echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.PasswordManagerEnabled == false' > /dev/null \
-        || { echo "FAIL: PasswordManagerEnabled not false"; exit 1; }
-      echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.BrowserSignin == 0' > /dev/null \
-        || { echo "FAIL: BrowserSignin not 0"; exit 1; }
-      echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | length == 0' > /dev/null \
-        || { echo "FAIL: alice should have empty ExtensionInstallAllowlist"; exit 1; }
-      echo "OK"
-      touch $out
-    '';
+    nixos-policy-content-alice =
+      pkgs.runCommand "test-nixos-policy-alice"
+        {
+          policy = nixosConfig.config.environment.etc."chromium/policies/managed/helium-alice.json".text;
+        }
+        ''
+          POLICY="$policy"
+          echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.PasswordManagerEnabled == false' > /dev/null \
+            || { echo "FAIL: PasswordManagerEnabled not false"; exit 1; }
+          echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.BrowserSignin == 0' > /dev/null \
+            || { echo "FAIL: BrowserSignin not 0"; exit 1; }
+          echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | length == 0' > /dev/null \
+            || { echo "FAIL: alice should have empty ExtensionInstallAllowlist"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
 
-    nixos-policy-content-bob = pkgs.runCommand "test-nixos-policy-bob" {
-      policy = nixosConfig.config.environment.etc."chromium/policies/managed/helium-bob.json".text;
-    } ''
-      POLICY="$policy"
-      echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.IncognitoModeAvailability == 1' > /dev/null \
-        || { echo "FAIL: IncognitoModeAvailability not 1"; exit 1; }
-      echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | index("nngceckbapebfimnlniiiahkandclblb") != null' > /dev/null \
-        || { echo "FAIL: extension ID not in allowlist"; exit 1; }
-      echo "OK"
-      touch $out
-    '';
+    nixos-policy-content-bob =
+      pkgs.runCommand "test-nixos-policy-bob"
+        {
+          policy = nixosConfig.config.environment.etc."chromium/policies/managed/helium-bob.json".text;
+        }
+        ''
+          POLICY="$policy"
+          echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.IncognitoModeAvailability == 1' > /dev/null \
+            || { echo "FAIL: IncognitoModeAvailability not 1"; exit 1; }
+          echo "$POLICY" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | index("nngceckbapebfimnlniiiahkandclblb") != null' > /dev/null \
+            || { echo "FAIL: extension ID not in allowlist"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
 
     # ── Home-manager module (evalModules) ──
 
-    hm-defaults-evaluate = pkgs.runCommand "test-hm-defaults" {
-      _ = builtins.seq (evalHMModule { enable = true; }).config null;
-    } ''
-      echo "OK"
-      touch $out
-    '';
+    hm-defaults-evaluate =
+      pkgs.runCommand "test-hm-defaults"
+        {
+          _ = builtins.seq (evalHMModule { enable = true; }).config null;
+        }
+        ''
+          echo "OK"
+          touch $out
+        '';
 
-    hm-policy-json-content = pkgs.runCommand "test-hm-policy-json-content" {
-      policyJson = (evalHMModule {
-        enable = true;
-        extraPolicies = {
-          PasswordManagerEnabled = false;
-          BrowserSignin = 0;
-        };
-      }).config.programs.helium.finalPolicyJson;
-    } ''
-      echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.' > /dev/null \
-        || { echo "FAIL: finalPolicyJson is not valid JSON"; exit 1; }
-      echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.PasswordManagerEnabled == false' > /dev/null \
-        || { echo "FAIL: PasswordManagerEnabled not false"; exit 1; }
-      echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.BrowserSignin == 0' > /dev/null \
-        || { echo "FAIL: BrowserSignin not 0"; exit 1; }
-      echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | length == 0' > /dev/null \
-        || { echo "FAIL: ExtensionInstallAllowlist should be empty when no extensions configured"; exit 1; }
-      echo "OK"
-      touch $out
-    '';
+    hm-policy-json-content =
+      pkgs.runCommand "test-hm-policy-json-content"
+        {
+          policyJson =
+            (evalHMModule {
+              enable = true;
+              extraPolicies = {
+                PasswordManagerEnabled = false;
+                BrowserSignin = 0;
+              };
+            }).config.programs.helium.finalPolicyJson;
+        }
+        ''
+          echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.' > /dev/null \
+            || { echo "FAIL: finalPolicyJson is not valid JSON"; exit 1; }
+          echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.PasswordManagerEnabled == false' > /dev/null \
+            || { echo "FAIL: PasswordManagerEnabled not false"; exit 1; }
+          echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.BrowserSignin == 0' > /dev/null \
+            || { echo "FAIL: BrowserSignin not 0"; exit 1; }
+          echo "$policyJson" | ${pkgs.jq}/bin/jq -e '.ExtensionInstallAllowlist | length == 0' > /dev/null \
+            || { echo "FAIL: ExtensionInstallAllowlist should be empty when no extensions configured"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
 
-    hm-policies-evaluate = pkgs.runCommand "test-hm-policies" {
-      _ = builtins.seq (evalHMModule {
-        enable = true;
-        extraPolicies = {
-          PasswordManagerEnabled = false;
-          BrowserSignin = 0;
-          BlockThirdPartyCookies = true;
-        };
-      }).config null;
-    } ''
-      echo "OK"
-      touch $out
-    '';
+    hm-policies-evaluate =
+      pkgs.runCommand "test-hm-policies"
+        {
+          _ =
+            builtins.seq
+              (evalHMModule {
+                enable = true;
+                extraPolicies = {
+                  PasswordManagerEnabled = false;
+                  BrowserSignin = 0;
+                  BlockThirdPartyCookies = true;
+                };
+              }).config
+              null;
+        }
+        ''
+          echo "OK"
+          touch $out
+        '';
 
-    hm-preferences-evaluate = pkgs.runCommand "test-hm-preferences" {
-      _ = builtins.seq (evalHMModule {
-        enable = true;
-        preferences = {
-          "browser.show_home_button" = true;
-          "bookmark_bar.show_on_all_tabs" = true;
-          "some.number" = 42;
-          "some.null" = null;
-        };
-      }).config null;
-    } ''
-      echo "OK"
-      touch $out
-    '';
+    hm-extensions-create-external-files =
+      let
+        extensionId = "cjpalhdlnbpafiamejdnhcphjbkeiagm";
+        ev =
+          (evalHMModule {
+            enable = true;
+            extensions = [
+              {
+                id = extensionId;
+                hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+              }
+            ];
+          }).config;
+        extensionFilePath = "/home/test/.config/net.imput.helium/External Extensions/${extensionId}.json";
+      in
+      pkgs.runCommand "test-hm-extensions-create-external-files"
+        {
+          _ = builtins.seq (
+            assert builtins.hasAttr extensionFilePath ev.home.file;
+            assert ev.home.file.${extensionFilePath}.source != null;
+            true
+          ) null;
+        }
+        ''
+          echo "OK"
+          touch $out
+        '';
 
-    hm-flags-evaluate = pkgs.runCommand "test-hm-flags" {
-      _ = builtins.seq (evalHMModule {
-        enable = true;
-        extraFlags = [ "--force-dark-mode" "--disable-features=SomeFeature" ];
-      }).config null;
-    } ''
-      echo "OK"
-      touch $out
-    '';
+    hm-preferences-evaluate =
+      pkgs.runCommand "test-hm-preferences"
+        {
+          _ =
+            builtins.seq
+              (evalHMModule {
+                enable = true;
+                preferences = {
+                  "browser.show_home_button" = true;
+                  "bookmark_bar.show_on_all_tabs" = true;
+                  "some.number" = 42;
+                  "some.null" = null;
+                };
+              }).config
+              null;
+        }
+        ''
+          echo "OK"
+          touch $out
+        '';
+
+    hm-flags-evaluate =
+      pkgs.runCommand "test-hm-flags"
+        {
+          _ =
+            builtins.seq
+              (evalHMModule {
+                enable = true;
+                extraFlags = [
+                  "--force-dark-mode"
+                  "--disable-features=SomeFeature"
+                ];
+              }).config
+              null;
+        }
+        ''
+          echo "OK"
+          touch $out
+        '';
 
     hm-default-browser-evaluate =
       let
-        ev = (evalHMModule {
-          enable = true;
-          defaultBrowser = true;
-        }).config;
+        ev =
+          (evalHMModule {
+            enable = true;
+            defaultBrowser = true;
+          }).config;
         mimeKeys = builtins.attrNames ev.xdg.mimeApps.defaultApplications;
       in
-      pkgs.runCommand "test-hm-default-browser" {
-        # Force evaluation of the mime apps config
-        _ = builtins.seq ev.xdg.mimeApps.defaultApplications null;
-      } ''
-        echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'text/html' \
-          || { echo "FAIL: missing text/html mime type"; exit 1; }
-        echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'text/xml' \
-          || { echo "FAIL: missing text/xml mime type"; exit 1; }
-        echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'x-scheme-handler/http' \
-          || { echo "FAIL: missing x-scheme-handler/http mime type"; exit 1; }
-        echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'x-scheme-handler/https' \
-          || { echo "FAIL: missing x-scheme-handler/https mime type"; exit 1; }
-        # Check that helium.desktop is set as the handler for key mime types
-        [ "${ev.xdg.mimeApps.defaultApplications."text/html"}" = "helium.desktop" ] \
-          || { echo "FAIL: text/html handler is not helium.desktop"; exit 1; }
-        echo "OK"
-        touch $out
-      '';
+      pkgs.runCommand "test-hm-default-browser"
+        {
+          # Force evaluation of the mime apps config
+          _ = builtins.seq ev.xdg.mimeApps.defaultApplications null;
+        }
+        ''
+          echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'text/html' \
+            || { echo "FAIL: missing text/html mime type"; exit 1; }
+          echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'text/xml' \
+            || { echo "FAIL: missing text/xml mime type"; exit 1; }
+          echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'x-scheme-handler/http' \
+            || { echo "FAIL: missing x-scheme-handler/http mime type"; exit 1; }
+          echo "${builtins.concatStringsSep " " mimeKeys}" | grep -q 'x-scheme-handler/https' \
+            || { echo "FAIL: missing x-scheme-handler/https mime type"; exit 1; }
+          # Check that helium.desktop is set as the handler for key mime types
+          [ "${ev.xdg.mimeApps.defaultApplications."text/html"}" = "helium.desktop" ] \
+            || { echo "FAIL: text/html handler is not helium.desktop"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
 
     hm-disabled-is-noop =
       let
@@ -357,30 +460,36 @@ in
 
     # ── Version consistency ──
 
-    version-consistency = pkgs.runCommand "test-version-consistency" {
-      readme = builtins.readFile "${self}/README.md";
-      # Expected README format: "**Helium 0.12.3 / Chromium ..." or "**Helium v0.12.3 / Chromium ..."
-      # The regex captures the version number after "Helium", with an optional leading "v".
-    } ''
-      README_VER=$(echo "$readme" | grep -oP 'Helium\s+v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-      PKG_VER="${heliumPkg.version}"
-      echo "README=$README_VER  PKG=$PKG_VER"
-      [ "$README_VER" = "$PKG_VER" ] \
-        || { echo "FAIL: README ($README_VER) != package ($PKG_VER)"; exit 1; }
-      echo "OK"
-      touch $out
-    '';
+    version-consistency =
+      pkgs.runCommand "test-version-consistency"
+        {
+          readme = builtins.readFile "${self}/README.md";
+          # Expected README format: "**Helium 0.12.3 / Chromium ..." or "**Helium v0.12.3 / Chromium ..."
+          # The regex captures the version number after "Helium", with an optional leading "v".
+        }
+        ''
+          README_VER=$(echo "$readme" | grep -oP 'Helium\s+v?\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          PKG_VER="${heliumPkg.version}"
+          echo "README=$README_VER  PKG=$PKG_VER"
+          [ "$README_VER" = "$PKG_VER" ] \
+            || { echo "FAIL: README ($README_VER) != package ($PKG_VER)"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
 
-    chromium-version-consistency = pkgs.runCommand "test-chromium-version" {
-      infoVer = infoJson.chromium.version;
-      pkgVer = heliumPkg.passthru.upstream-info.version;
-    } ''
-      echo "info.json=$infoVer  default.nix=$pkgVer"
-      [ "$infoVer" = "$pkgVer" ] \
-        || { echo "FAIL: info.json chromium ($infoVer) != default.nix ($pkgVer)"; exit 1; }
-      echo "OK"
-      touch $out
-    '';
+    chromium-version-consistency =
+      pkgs.runCommand "test-chromium-version"
+        {
+          infoVer = infoJson.chromium.version;
+          pkgVer = heliumPkg.passthru.upstream-info.version;
+        }
+        ''
+          echo "info.json=$infoVer  default.nix=$pkgVer"
+          [ "$infoVer" = "$pkgVer" ] \
+            || { echo "FAIL: info.json chromium ($infoVer) != default.nix ($pkgVer)"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
   };
 
   # ──────────────────────────────────────
@@ -441,8 +550,13 @@ in
 
     widevine-override-evaluates =
       let
-        pkgsAllowUnfree = import pkgs.path { inherit system; config = { allowUnfree = true; }; };
-        wv = (pkgsAllowUnfree.callPackage ../default.nix { enableWideVine = true; });
+        pkgsAllowUnfree = import pkgs.path {
+          inherit system;
+          config = {
+            allowUnfree = true;
+          };
+        };
+        wv = pkgsAllowUnfree.callPackage ../default.nix { enableWideVine = true; };
       in
       pkgs.runCommand "test-widevine-override" { } ''
         # Force evaluation: reference the store path so the derivation can't be lazy-skipped
@@ -464,17 +578,19 @@ in
       let
         customPkg = heliumPkg.override { commandLineArgs = "--force-dark-mode --incognito"; };
       in
-      pkgs.runCommand "test-commandlineargs-override" {
-        # Expose the wrapper path so we can grep the binary for actual flags
-        wrapper = "${customPkg}/bin/helium";
-      } ''
-        grep -q 'force-dark-mode' "$wrapper" \
-          || { echo "FAIL: --force-dark-mode not found in wrapper"; exit 1; }
-        grep -q 'incognito' "$wrapper" \
-          || { echo "FAIL: --incognito not found in wrapper"; exit 1; }
-        echo "OK"
-        touch $out
-      '';
+      pkgs.runCommand "test-commandlineargs-override"
+        {
+          # Expose the wrapper path so we can grep the binary for actual flags
+          wrapper = "${customPkg}/bin/helium";
+        }
+        ''
+          grep -q 'force-dark-mode' "$wrapper" \
+            || { echo "FAIL: --force-dark-mode not found in wrapper"; exit 1; }
+          grep -q 'incognito' "$wrapper" \
+            || { echo "FAIL: --incognito not found in wrapper"; exit 1; }
+          echo "OK"
+          touch $out
+        '';
 
     overlay-resolves = pkgs.runCommand "test-overlay-resolves" { } ''
       OLY="${(self.overlays.default pkgs pkgs).helium}"

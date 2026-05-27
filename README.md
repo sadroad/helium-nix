@@ -96,6 +96,8 @@ programs.helium = {
 ```
 
 > **Note:** Both the NixOS module and the home-manager module are needed for policies to work correctly. The NixOS module writes policy files to `/etc/chromium/policies/managed/` based on your home-manager config.
+>
+> Extensions are fetched as pinned Chrome Web Store CRX files and installed through Chromium's External Extensions mechanism. The CRX is kept in the Nix store, while Helium installs the extension into the browser profile so generated extension metadata can be written normally.
 
 #### Options
 
