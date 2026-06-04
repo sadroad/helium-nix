@@ -8,10 +8,13 @@ const nixpkgs = (await $`git rev-parse --show-toplevel`).stdout.trim()
 const $nixpkgs = $({
   cwd: nixpkgs
 })
+const flake_url = `path:${nixpkgs}`
+const pkgs_expr = `(builtins.getFlake "${flake_url}").inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}`
+const helium_expr = `(builtins.getFlake "${flake_url}").packages.\${builtins.currentSystem}.helium`
 
 const dummy_hash = 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
 
-const lockfile_file = './info.json'
+const lockfile_file = path.join(nixpkgs, 'info.json')
 const lockfile_initial = fs.readJsonSync(lockfile_file)
 function flush_to_file() {
   fs.writeJsonSync(lockfile_file, lockfile, { spaces: 2 })
@@ -40,7 +43,7 @@ for (const attr_path of Object.keys(lockfile)) {
   }
 
   const version_nixpkgs = !ungoogled ? lockfile[attr_path].version : lockfile[attr_path].deps['ungoogled-patches'].rev
-  const version_upstream = !ungoogled ? await get_latest_chromium_release('linux') :
+  const version_upstream = !ungoogled ? (argv['chromium-version'] ?? await get_latest_chromium_release('linux')) :
     ungoogled_rev ?? await get_latest_ungoogled_release()
 
   console.log(`[${attr_path}] ${chalk.red(version_nixpkgs)} (nixpkgs)`)
@@ -59,7 +62,7 @@ for (const attr_path of Object.keys(lockfile)) {
 
     lockfile[attr_path] = {
       version: version_chromium,
-      chromedriver: !ungoogled ? await fetch_chromedriver_binaries(await get_latest_chromium_release('mac')) : undefined,
+      chromedriver: !ungoogled ? await fetch_chromedriver_binaries(version_chromium) : undefined,
       deps: {
         depot_tools: {},
         gn: await fetch_gn(chromium_rev, lockfile_initial[attr_path].deps.gn),
@@ -118,11 +121,11 @@ for (const attr_path of Object.keys(lockfile)) {
       }
 
       console.log(`[${chalk.red(path)}] FOD prefetching ${value.url}@${value.rev}...`)
-      value.hash = await prefetch_FOD('-A', `${attr_path}.browser.passthru.chromiumDeps."${path}"`)
+      value.hash = await prefetch_FOD('--expr', `${helium_expr}.passthru.browser.passthru.chromiumDeps.${JSON.stringify(path)}`)
       console.log(`[${chalk.green(path)}] FOD prefetching successful`)
     }
 
-    lockfile[attr_path].deps.npmHash = await prefetch_FOD('-A', `${attr_path}.browser.passthru.npmDeps`)
+    lockfile[attr_path].deps.npmHash = await prefetch_FOD('--expr', `${helium_expr}.passthru.browser.passthru.npmDeps`)
 
     console.log(chalk.green(`[${attr_path}] Done updating ${attr_path} from ${version_nixpkgs} to ${version_upstream}!`))
   }
@@ -141,13 +144,10 @@ async function fetch_gn(chromium_rev, gn_previous) {
   const commit_date = await get_gitiles_commit_date('https://gn.googlesource.com/gn', rev)
   const version = `0-unstable-${commit_date}`
 
-  const expr = [`(import ./. {}).gn.override { version = "${version}"; rev = "${rev}"; hash = ""; }`]
-  const derivation = await $nixpkgs`nix-instantiate --expr ${expr}`
-
   return {
     version,
     rev,
-    hash: await prefetch_FOD(derivation),
+    hash: await prefetch_FOD('--expr', `${pkgs_expr}.gn.override { version = "${version}"; rev = "${rev}"; hash = ""; }`),
   }
 }
 
@@ -165,9 +165,7 @@ async function get_gitiles_commit_date(base_url, rev) {
 async function fetch_chromedriver_binaries(version) {
   // https://developer.chrome.com/docs/chromedriver/downloads/version-selection
   const prefetch = async (url) => {
-    const expr = [`(import ./. {}).fetchzip { url = "${url}"; hash = ""; }`]
-    const derivation = await $nixpkgs`nix-instantiate --expr ${expr}`
-    return await prefetch_FOD(derivation)
+    return await prefetch_FOD('--expr', `${pkgs_expr}.fetchzip { url = "${url}"; hash = ""; }`)
   }
 
   // if the URL ever changes, the URLs in the chromedriver derivations need updating as well!
@@ -189,7 +187,7 @@ async function chromium_resolve_tag_to_rev(tag) {
 
 
 async function resolve_DEPS(depot_tools_checkout, chromium_rev) {
-  const { stdout } = await $`./depot_tools.py ${depot_tools_checkout} ${chromium_rev}`
+  const { stdout } = await $`nix shell --impure --expr ${pkgs_expr}.python3 -c python3 ./depot_tools.py ${depot_tools_checkout} ${chromium_rev}`
   const deps = JSON.parse(stdout)
   return Object.fromEntries(Object.entries(deps).map(([k, { url, rev, hash }]) => [k,  { url, rev, hash }]))
 }
@@ -215,10 +213,10 @@ async function get_latest_ungoogled_release() {
 
 
 async function fetch_ungoogled(rev) {
-  const expr = (hash) => [`(import ./. {}).fetchFromGitHub { owner = "ungoogled-software"; repo = "ungoogled-chromium"; rev = "${rev}"; hash = "${hash}"; }`]
+  const expr = (hash) => `${pkgs_expr}.fetchFromGitHub { owner = "ungoogled-software"; repo = "ungoogled-chromium"; rev = "${rev}"; hash = "${hash}"; }`
   const hash = await prefetch_FOD('--expr', expr(''))
 
-  const checkout = await $nixpkgs`nix-build --expr ${expr(hash)}`
+  const checkout = await $nixpkgs`nix-build --impure --expr ${expr(hash)}`
   const checkout_path = checkout.stdout.trim()
 
   await fs.copy(path.join(checkout_path, 'flags.gn'), './ungoogled-flags.toml')
@@ -254,13 +252,13 @@ async function fetch_depot_tools(chromium_rev, depot_tools_previous) {
 
 
 async function prefetch_gitiles(url, rev, hash = '') {
-  const expr = () => [`(import ./. {}).fetchFromGitiles { url = "${url}"; rev = "${rev}"; hash = "${hash}"; }`]
+  const expr = () => `${pkgs_expr}.fetchFromGitiles { url = "${url}"; rev = "${rev}"; hash = "${hash}"; }`
 
   if (hash === '') {
     hash = await prefetch_FOD('--expr', expr())
   }
 
-  const { stdout } = await $nixpkgs`nix-build  --expr ${expr()}`
+  const { stdout } = await $nixpkgs`nix-build --impure --expr ${expr()}`
 
   return {
     url,
@@ -272,7 +270,7 @@ async function prefetch_gitiles(url, rev, hash = '') {
 
 
 async function prefetch_FOD(...args) {
-  const { stderr } = await $nixpkgs`nix-build ${args}`.nothrow()
+  const { stderr } = await $nixpkgs`nix-build --impure ${args}`.nothrow()
   const hash = /\s+got:\s+(?<hash>.+)$/m.exec(stderr)?.groups?.hash
 
   if (hash == undefined) {

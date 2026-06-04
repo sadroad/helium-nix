@@ -220,7 +220,7 @@ const currentChromium = infoJson.chromium?.version;
 if (currentChromium !== chromiumVersion) {
   console.log(`\n⚠ Chromium base changed: ${currentChromium} → ${chromiumVersion}`);
   console.log("info.json needs updating. Run the chromium update script:");
-  console.log(`  cd chromium && nix-shell -p zx --run 'zx update.mjs --chromium'`);
+  console.log(`  nix shell nixpkgs#zx -c zx chromium/update.mjs --chromium --chromium-version ${chromiumVersion}`);
 } else {
   console.log("Chromium base unchanged, info.json is fine.");
 }

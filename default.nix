@@ -76,9 +76,11 @@ let
   };
   helium-linux-patches = "${helium-linux-src}/patches/helium/linux";
 
-  upstream-info = nixpkgsChromiumInfo.chromium // {
-    version = chromiumVersion;
-  };
+  upstream-info =
+    if nixpkgsChromiumInfo.chromium.version == chromiumVersion then
+      nixpkgsChromiumInfo.chromium
+    else
+      throw "info.json Chromium version (${nixpkgsChromiumInfo.chromium.version}) does not match default.nix chromiumVersion (${chromiumVersion})";
 
   helium-onboarding = fetchurl {
     url = "https://github.com/imputnet/helium-onboarding/releases/download/202605050730/helium-onboarding-202605050730.tar.gz";
