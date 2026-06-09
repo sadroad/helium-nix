@@ -470,13 +470,11 @@ let
 
     patches =
       [ ]
-      # cross-compile.patch modifies BUILD.gn which helium core patches also change.
-      # Skip it for helium builds — the file context no longer matches after
+      # These nixpkgs patches target files that helium core patches modify.
+      # Skip them for helium builds — the file context no longer matches after
       # helium-linux patches are applied in prePatch.
       ++ lib.optionals (helium-patches == null) [
         ./patches/cross-compile.patch
-      ]
-      ++ [
         # Optional patch to use SOURCE_DATE_EPOCH in compute_build_timestamp.py (should be upstreamed):
         ./patches/no-build-timestamps.patch
       ]
