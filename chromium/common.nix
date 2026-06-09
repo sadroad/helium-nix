@@ -703,7 +703,7 @@ let
           "") continue ;;
         esac
         echo "Applying Helium patch: $patch_name"
-        patch -p1 --fuzz=2 --no-backup-if-mismatch \
+        patch -p1 --fuzz=3 --no-backup-if-mismatch \
           -i "${helium-patches}/patches/$patch_name" \
           || echo "Warning: patch $patch_name failed, continuing..."
       done < "${helium-patches}/patches/series"
@@ -713,7 +713,7 @@ let
       ${lib.optionalString (helium-linux-patches != null) ''
         for patch_file in ${helium-linux-patches}/*.patch; do
           echo "Applying helium-linux patch: $(basename $patch_file)"
-          patch -p1 --fuzz=2 --no-backup-if-mismatch \
+          patch -p1 --fuzz=3 --no-backup-if-mismatch \
             -i "$patch_file"
         done
       ''}
