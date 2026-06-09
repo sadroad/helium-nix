@@ -468,216 +468,223 @@ let
     ]
     ++ lib.optional pulseSupport libpulseaudio;
 
-    patches = [
-      ./patches/cross-compile.patch
-      # Optional patch to use SOURCE_DATE_EPOCH in compute_build_timestamp.py (should be upstreamed):
-      ./patches/no-build-timestamps.patch
-    ]
-    ++ lib.optionals (packageName == "chromium") [
-      # This patch is limited to chromium and ungoogled-chromium because electron-source sets
-      # enable_widevine to false.
-      #
-      # The patch disables the automatic Widevine download (component) that happens at runtime
-      # completely (~/.config/chromium/WidevineCdm/). This would happen if chromium encounters DRM
-      # protected content or when manually opening chrome://components.
-      #
-      # It also prevents previously downloaded Widevine blobs in that location from being loaded and
-      # used at all, while still allowing the use of our -wv wrapper. This is because those old
-      # versions are out of out our control and may be vulnerable, given we literally disable their
-      # auto updater.
-      #
-      # bundle_widevine_cdm is available as gn flag, but we cannot use it, as it expects a bunch of
-      # files Widevine files at configure/compile phase that we don't have. Changing the value of the
-      # BUNDLE_WIDEVINE_CDM build flag does work in the way we want though.
-      # We also need enable_widevine_cdm_component to be false. Unfortunately it isn't exposed as gn
-      # flag (declare_args) so we simply hardcode it to false.
-      ./patches/widevine-disable-auto-download-allow-bundle.patch
-    ]
-    ++ [
-      # Required to fix the build with a more recent wayland-protocols version
-      # (we currently package 1.26 in Nixpkgs while Chromium bundles 1.21):
-      # Source: https://bugs.chromium.org/p/angleproject/issues/detail?id=7582#c1
-      ./patches/angle-wayland-include-protocol.patch
-      # Chromium reads initial_preferences from its own executable directory
-      # This patch modifies it to read /etc/chromium/initial_preferences
-      ./patches/chromium-initial-prefs.patch
-    ]
-    ++ lib.optionals (!chromiumVersionAtLeast "142") [
-      # https://github.com/chromium/chromium/commit/02b6456643700771597c00741937e22068b0f956
-      # https://github.com/chromium/chromium/commit/69736ffe943ff996d4a88d15eb30103a8c854e29
-      # Rebased variant of patch to build M126+ with LLVM 17.
-      # staging-next will bump LLVM to 18, so we will be able to drop this soon.
-      # Started failing to apply with M142, but this is no longer needed anyway.
-      ./patches/chromium-126-llvm-17.patch
-    ]
-    ++ lib.optionals (versionRange "140" "141") [
-      # Partial revert of https://github.com/chromium/chromium/commit/3687976b0c6d36cf4157419a24a39f6770098d61
-      # allowing us to use our rustc and our clang.
-      ./patches/chromium-140-rust.patch
-    ]
-    ++ lib.optionals (chromiumVersionAtLeast "141") [
-      # Rebased variant of the patch above due to
-      # https://chromium-review.googlesource.com/c/chromium/src/+/6897026
-      ./patches/chromium-141-rust.patch
-    ]
-    ++ lib.optionals (!chromiumVersionAtLeast "145" && stdenv.hostPlatform.isAarch64) [
-      # Reverts decommit pooled pages which causes random crashes of tabs on systems
-      # with page sizes different than 4k. It 'supports' runtime page sizes, but has
-      # a hardcode for aarch64 systems.
-      # https://issues.chromium.org/issues/378017037
-      # Started failing to apply with M145, but this is no longer needed anyway.
-      (fetchpatch {
-        name = "reverted-v8-decommit-pooled-paged-by-default.patch";
-        # https://chromium-review.googlesource.com/c/v8/v8/+/5864909
-        url = "https://chromium.googlesource.com/v8/v8/+/1ab1a14ad97394d384d8dc6de51bb229625e66d6^!?format=TEXT";
-        decode = "base64 -d";
-        stripLen = 1;
-        extraPrefix = "v8/";
-        revert = true;
-        hash = "sha256-PuinMLhJ2W4KPXI5K0ujw85ENTB1wG7Hv785SZ55xnY=";
-      })
-    ]
-    ++ [
-      # Modify the nodejs version check added in https://chromium-review.googlesource.com/c/chromium/src/+/6334038
-      # to look for the minimal version, not the exact version (major.minor.patch). The linked CL makes a case for
-      # preventing compilations of chromium with versions below their intended version, not about running the very
-      # exact version or even running a newer version.
-      ./patches/chromium-136-nodejs-assert-minimal-version-instead-of-exact-match.patch
-    ]
-    ++ [
-      (fetchpatch {
-        # Unbreak building with Rust 1.89+ which introduced
-        # a new mismatched_lifetime_syntaxes lint.
-        # https://issues.chromium.org/issues/424424323
-        name = "chromium-138-rust-1.86-mismatched_lifetime_syntaxes.patch";
-        # https://chromium-review.googlesource.com/c/chromium/src/+/6658267
-        url = "https://chromium.googlesource.com/chromium/src/+/94a87ff38c51fd1a71980a5051d3553978391608^!?format=TEXT";
-        decode = "base64 -d";
-        includes = [ "build/rust/cargo_crate.gni" ];
-        hash = "sha256-xf1Jq5v3InXkiVH0uT7+h1HPwZse5MDcHKuJNjSLR6k=";
-      })
-    ]
-    ++ lib.optionals (versionRange "142" "143") [
-      (fetchpatch {
-        # Fix https://issues.chromium.org/issues/450752866 by backporting
-        # https://chromium-review.googlesource.com/c/chromium/src/+/7030724 from M143
-        name = "chromium-142-Backport-Add-missing-include-for-FormFieldData-type-completeness.patch";
-        url = "https://chromium.googlesource.com/chromium/src/+/069d424e41f42c6f4a4551334eafc7cfaed6e880^!?format=TEXT";
-        decode = "base64 -d";
-        hash = "sha256-0ueOCHYheSFHRFzEat3TDhnU3Avf0TcNBBBpTkz+saw=";
-      })
-    ]
-    ++ lib.optionals (versionRange "144" "146") [
-      # Patch rustc_nightly_capability to eval to false instead of true.
-      # https://chromium-review.googlesource.com/c/chromium/src/+/7022369
-      ./patches/chromium-144-rustc_nightly_capability.patch
-    ]
-    ++ lib.optionals (versionRange "144.0.7559.132" "145" && !ungoogled) [
-      # Rollup was swapped with esbuild because of compile failures on Windows,
-      # which is not compatible with our build yet. So let's revert it for now.
-      # Ungoogled ships its own variant of this patch upstream.
-      # https://issues.chromium.org/issues/461602362
-      (fetchpatch {
-        name = "revert-devtools-frontend-esbuild-instead-of-rollup.patch";
-        # https://chromium-review.googlesource.com/c/devtools/devtools-frontend/+/7526345
-        url = "https://chromium.googlesource.com/devtools/devtools-frontend/+/f130475580017f9f87502343dbcfc0c76dccefe8^!?format=TEXT";
-        decode = "base64 -d";
-        stripLen = 1;
-        extraPrefix = "third_party/devtools-frontend/src/";
-        revert = true;
-        hash = "sha256-k+xCfhDuHxtuGhY7LVE8HvbDJt8SEFkslBcJe7t5CAg=";
-      })
-    ]
-    ++ lib.optionals (chromiumVersionAtLeast "146" && !ungoogled) [
-      # Same as the patch above, but from ungoogled-chromium and much
-      # cleaner (and smaller) than reverting an endless chain of CLs.
-      (fetchpatch {
-        name = "ungoogled-chromium-145-build-with-wasm-rollup.patch";
-        # https://github.com/ungoogled-software/ungoogled-chromium/blob/145.0.7632.159-1/patches/core/ungoogled-chromium/build-with-wasm-rollup.patch
-        url = "https://github.com/ungoogled-software/ungoogled-chromium/raw/refs/tags/145.0.7632.159-1/patches/core/ungoogled-chromium/build-with-wasm-rollup.patch";
-        hash = "sha256-Ho5I33FOgtYHvKSZlWXWuBaqnSHqy4+f6EZdiL+/rRQ=";
-      })
-    ]
-    ++ lib.optionals (chromiumVersionAtLeast "146" && !ungoogled) [
-      # Revert CL 7457194 to fix the following error:
-      #  ERROR at //chrome/test/BUILD.gn:6355:9: Unable to load "/build/src/components/variations/test_data/cipd/BUILD.gn".
-      #  "//components/variations/test_data/cipd:single_group_per_study_prefer_existing_behavior_seed",
-      (fetchpatch {
-        name = "chromium-146-revert-Add-finch-seeds-to-desktop-perf-builds.patch";
-        # https://chromium-review.googlesource.com/c/chromium/src/+/7457194
-        url = "https://chromium.googlesource.com/chromium/src/+/d2e8a550eece6051372da94a475a8661da203106^!?format=TEXT";
-        decode = "base64 -d";
-        revert = true;
-        hash = "sha256-tJ//HE7o9R8nSQDGhi+MKXdNUwnkCZI++CzpAmFn2YY=";
-      })
-    ]
-    ++ lib.optionals (versionRange "146" "148" && lib.versionOlder llvmVersion "23") [
-      # clang++: error: unknown argument: '-fsanitize-ignore-for-ubsan-feature=array-bounds'
-      (fetchpatch {
-        name = "chromium-146-revert-Update-fsanitizer=array-bounds-config.patch";
-        # https://chromium-review.googlesource.com/c/chromium/src/+/7539408
-        url = "https://chromium.googlesource.com/chromium/src/+/acb47d9a6b56c4889a2ed4216e9968cfc740086c^!?format=TEXT";
-        decode = "base64 -d";
-        revert = true;
-        hash = "sha256-WZsN2qm6lX121bDf7SoN75flXtCTmPPpwtHK0ayjkPc=";
-      })
-    ]
-    ++ lib.optionals (versionRange "146" "147") [
-      # Backport CL 7594600 from M147 to fix the following error:
-      #  error[E0277]: the trait bound `LaneCount<N>: SupportedLaneCount` is not satisfied
-      #  --> ../../third_party/rust/chromium_crates_io/vendor/bytemuck-v1/src/pod.rs:152:40
-      (fetchpatch {
-        name = "chromium-146-backport-Remove-now-obsolete-invalid-patch-on-bytemuck-v1.patch";
-        # https://chromium-review.googlesource.com/c/chromium/src/+/7594600
-        url = "https://chromium.googlesource.com/chromium/src/+/90b77efcecb262823fadb67b0ce218846cd9e756^!?format=TEXT";
-        decode = "base64 -d";
-        hash = "sha256-iDhDdVscy0tinQCRKXOghrn4ZRwlc8YjPZ0xPv0UMEU=";
-      })
-    ]
-    ++ lib.optionals (chromiumVersionAtLeast "147" && lib.versionOlder llvmVersion "23") [
-      # clang++: error: unknown argument: '-fno-lifetime-dse'
-      ./patches/chromium-147-llvm-22.patch
-    ]
-    ++ lib.optionals (chromiumVersionAtLeast "148" && lib.versionOlder llvmVersion "23") [
-      # clang++: error: unknown argument: '-fsanitize-ignore-for-ubsan-feature=return'
-      (fetchpatch {
-        name = "chromium-148-revert-build-Add--fsanitizer=return-config.patch";
-        # https://chromium-review.googlesource.com/c/chromium/src/+/7629257
-        url = "https://chromium.googlesource.com/chromium/src/+/99ba1f5302f9433efdb4df302cb7b7de56c72e4c^!?format=TEXT";
-        decode = "base64 -d";
-        revert = true;
-        hash = "sha256-/qzzxwTdPMwIdsqD/G02S7kKHCj3QxECL+g1WYEaWmU=";
-      })
-      # ERROR Unresolved dependencies.
-      # //apps:apps(//build/toolchain/linux/unbundle:default)
-      #   needs //build/config/compiler:sanitize_return(//build/toolchain/linux/unbundle:default)
-      (fetchpatch {
-        name = "chromium-148-revert-build-Enable--fsanitizer=return-config.patch";
-        # https://chromium-review.googlesource.com/c/chromium/src/+/7629258
-        url = "https://chromium.googlesource.com/chromium/src/+/9357bfbea03753fe52264c9ec36abe74f48cfef5^!?format=TEXT";
-        decode = "base64 -d";
-        revert = true;
-        hash = "sha256-14fTHNh3vGsf4KgeH8uLX+aK3lrjK0VKd1dfK1g7r0I=";
-      })
-      # [33377/55552] LINK ./mksnapshot
-      # ld.lld: error: undefined symbol: __sanitizer_set_death_callback
-      (fetchpatch {
-        name = "archlinux-chromium-146-drop-unknown-clang-flag.patch";
-        url = "https://gitlab.archlinux.org/archlinux/packaging/packages/chromium/-/raw/148.0.7778.96-1/chromium-146-drop-unknown-clang-flag.patch";
-        hash = "sha256-jR0G9z2R8VGl2tkB3u0368RyWM1J6qYXqNWwKkYd5zU=";
-      })
-    ]
-    ++ lib.optionals (chromiumVersionAtLeast "148") [
-      # ninja: error: '../../third_party/rust-toolchain/bin/rustc', needed by 'phony/default_for_rust_host_build_tools_rust_bin_inputs', missing and no known rule to make it
-      (fetchpatch {
-        name = "chromium-148-revert-Reland-build-use-tool-inputs-instead-of-siso-config-for-rust-actions.patch";
-        # https://chromium-review.googlesource.com/c/chromium/src/+/7719879
-        url = "https://chromium.googlesource.com/chromium/src/+/9193ab90af24c23ee983e0a8da9bed45712f0d26^!?format=TEXT";
-        decode = "base64 -d";
-        revert = true;
-        hash = "sha256-7xg8IZ2gO+Wtnv7lWLVE3lLpcmMgvtDtcWwUuMBzkrE=";
-      })
-    ];
+    patches =
+      [ ]
+      # cross-compile.patch modifies BUILD.gn which helium core patches also change.
+      # Skip it for helium builds — the file context no longer matches after
+      # helium-linux patches are applied in prePatch.
+      ++ lib.optionals (helium-patches == null) [
+        ./patches/cross-compile.patch
+      ]
+      ++ [
+        # Optional patch to use SOURCE_DATE_EPOCH in compute_build_timestamp.py (should be upstreamed):
+        ./patches/no-build-timestamps.patch
+      ]
+      ++ lib.optionals (packageName == "chromium") [
+        # This patch is limited to chromium and ungoogled-chromium because electron-source sets
+        # enable_widevine to false.
+        #
+        # The patch disables the automatic Widevine download (component) that happens at runtime
+        # completely (~/.config/chromium/WidevineCdm/). This would happen if chromium encounters DRM
+        # protected content or when manually opening chrome://components.
+        #
+        # It also prevents previously downloaded Widevine blobs in that location from being loaded and
+        # used at all, while still allowing the use of our -wv wrapper. This is because those old
+        # versions are out of out our control and may be vulnerable, given we literally disable their
+        # auto updater.
+        #
+        # bundle_widevine_cdm is available as gn flag, but we cannot use it, as it expects a bunch of
+        # files Widevine files at configure/compile phase that we don't have. Changing the value of the
+        # BUNDLE_WIDEVINE_CDM build flag does work in the way we want though.
+        # We also need enable_widevine_cdm_component to be false. Unfortunately it isn't exposed as gn
+        # flag (declare_args) so we simply hardcode it to false.
+        ./patches/widevine-disable-auto-download-allow-bundle.patch
+      ]
+      ++ [
+        # Required to fix the build with a more recent wayland-protocols version
+        # (we currently package 1.26 in Nixpkgs while Chromium bundles 1.21):
+        # Source: https://bugs.chromium.org/p/angleproject/issues/detail?id=7582#c1
+        ./patches/angle-wayland-include-protocol.patch
+        # Chromium reads initial_preferences from its own executable directory
+        # This patch modifies it to read /etc/chromium/initial_preferences
+        ./patches/chromium-initial-prefs.patch
+      ]
+      ++ lib.optionals (!chromiumVersionAtLeast "142") [
+        # https://github.com/chromium/chromium/commit/02b6456643700771597c00741937e22068b0f956
+        # https://github.com/chromium/chromium/commit/69736ffe943ff996d4a88d15eb30103a8c854e29
+        # Rebased variant of patch to build M126+ with LLVM 17.
+        # staging-next will bump LLVM to 18, so we will be able to drop this soon.
+        # Started failing to apply with M142, but this is no longer needed anyway.
+        ./patches/chromium-126-llvm-17.patch
+      ]
+      ++ lib.optionals (versionRange "140" "141") [
+        # Partial revert of https://github.com/chromium/chromium/commit/3687976b0c6d36cf4157419a24a39f6770098d61
+        # allowing us to use our rustc and our clang.
+        ./patches/chromium-140-rust.patch
+      ]
+      ++ lib.optionals (chromiumVersionAtLeast "141") [
+        # Rebased variant of the patch above due to
+        # https://chromium-review.googlesource.com/c/chromium/src/+/6897026
+        ./patches/chromium-141-rust.patch
+      ]
+      ++ lib.optionals (!chromiumVersionAtLeast "145" && stdenv.hostPlatform.isAarch64) [
+        # Reverts decommit pooled pages which causes random crashes of tabs on systems
+        # with page sizes different than 4k. It 'supports' runtime page sizes, but has
+        # a hardcode for aarch64 systems.
+        # https://issues.chromium.org/issues/378017037
+        # Started failing to apply with M145, but this is no longer needed anyway.
+        (fetchpatch {
+          name = "reverted-v8-decommit-pooled-paged-by-default.patch";
+          # https://chromium-review.googlesource.com/c/v8/v8/+/5864909
+          url = "https://chromium.googlesource.com/v8/v8/+/1ab1a14ad97394d384d8dc6de51bb229625e66d6^!?format=TEXT";
+          decode = "base64 -d";
+          stripLen = 1;
+          extraPrefix = "v8/";
+          revert = true;
+          hash = "sha256-PuinMLhJ2W4KPXI5K0ujw85ENTB1wG7Hv785SZ55xnY=";
+        })
+      ]
+      ++ [
+        # Modify the nodejs version check added in https://chromium-review.googlesource.com/c/chromium/src/+/6334038
+        # to look for the minimal version, not the exact version (major.minor.patch). The linked CL makes a case for
+        # preventing compilations of chromium with versions below their intended version, not about running the very
+        # exact version or even running a newer version.
+        ./patches/chromium-136-nodejs-assert-minimal-version-instead-of-exact-match.patch
+      ]
+      ++ [
+        (fetchpatch {
+          # Unbreak building with Rust 1.89+ which introduced
+          # a new mismatched_lifetime_syntaxes lint.
+          # https://issues.chromium.org/issues/424424323
+          name = "chromium-138-rust-1.86-mismatched_lifetime_syntaxes.patch";
+          # https://chromium-review.googlesource.com/c/chromium/src/+/6658267
+          url = "https://chromium.googlesource.com/chromium/src/+/94a87ff38c51fd1a71980a5051d3553978391608^!?format=TEXT";
+          decode = "base64 -d";
+          includes = [ "build/rust/cargo_crate.gni" ];
+          hash = "sha256-xf1Jq5v3InXkiVH0uT7+h1HPwZse5MDcHKuJNjSLR6k=";
+        })
+      ]
+      ++ lib.optionals (versionRange "142" "143") [
+        (fetchpatch {
+          # Fix https://issues.chromium.org/issues/450752866 by backporting
+          # https://chromium-review.googlesource.com/c/chromium/src/+/7030724 from M143
+          name = "chromium-142-Backport-Add-missing-include-for-FormFieldData-type-completeness.patch";
+          url = "https://chromium.googlesource.com/chromium/src/+/069d424e41f42c6f4a4551334eafc7cfaed6e880^!?format=TEXT";
+          decode = "base64 -d";
+          hash = "sha256-0ueOCHYheSFHRFzEat3TDhnU3Avf0TcNBBBpTkz+saw=";
+        })
+      ]
+      ++ lib.optionals (versionRange "144" "146") [
+        # Patch rustc_nightly_capability to eval to false instead of true.
+        # https://chromium-review.googlesource.com/c/chromium/src/+/7022369
+        ./patches/chromium-144-rustc_nightly_capability.patch
+      ]
+      ++ lib.optionals (versionRange "144.0.7559.132" "145" && !ungoogled) [
+        # Rollup was swapped with esbuild because of compile failures on Windows,
+        # which is not compatible with our build yet. So let's revert it for now.
+        # Ungoogled ships its own variant of this patch upstream.
+        # https://issues.chromium.org/issues/461602362
+        (fetchpatch {
+          name = "revert-devtools-frontend-esbuild-instead-of-rollup.patch";
+          # https://chromium-review.googlesource.com/c/devtools/devtools-frontend/+/7526345
+          url = "https://chromium.googlesource.com/devtools/devtools-frontend/+/f130475580017f9f87502343dbcfc0c76dccefe8^!?format=TEXT";
+          decode = "base64 -d";
+          stripLen = 1;
+          extraPrefix = "third_party/devtools-frontend/src/";
+          revert = true;
+          hash = "sha256-k+xCfhDuHxtuGhY7LVE8HvbDJt8SEFkslBcJe7t5CAg=";
+        })
+      ]
+      ++ lib.optionals (chromiumVersionAtLeast "146" && !ungoogled) [
+        # Same as the patch above, but from ungoogled-chromium and much
+        # cleaner (and smaller) than reverting an endless chain of CLs.
+        (fetchpatch {
+          name = "ungoogled-chromium-145-build-with-wasm-rollup.patch";
+          # https://github.com/ungoogled-software/ungoogled-chromium/blob/145.0.7632.159-1/patches/core/ungoogled-chromium/build-with-wasm-rollup.patch
+          url = "https://github.com/ungoogled-software/ungoogled-chromium/raw/refs/tags/145.0.7632.159-1/patches/core/ungoogled-chromium/build-with-wasm-rollup.patch";
+          hash = "sha256-Ho5I33FOgtYHvKSZlWXWuBaqnSHqy4+f6EZdiL+/rRQ=";
+        })
+      ]
+      ++ lib.optionals (chromiumVersionAtLeast "146" && !ungoogled) [
+        # Revert CL 7457194 to fix the following error:
+        #  ERROR at //chrome/test/BUILD.gn:6355:9: Unable to load "/build/src/components/variations/test_data/cipd/BUILD.gn".
+        #  "//components/variations/test_data/cipd:single_group_per_study_prefer_existing_behavior_seed",
+        (fetchpatch {
+          name = "chromium-146-revert-Add-finch-seeds-to-desktop-perf-builds.patch";
+          # https://chromium-review.googlesource.com/c/chromium/src/+/7457194
+          url = "https://chromium.googlesource.com/chromium/src/+/d2e8a550eece6051372da94a475a8661da203106^!?format=TEXT";
+          decode = "base64 -d";
+          revert = true;
+          hash = "sha256-tJ//HE7o9R8nSQDGhi+MKXdNUwnkCZI++CzpAmFn2YY=";
+        })
+      ]
+      ++ lib.optionals (versionRange "146" "148" && lib.versionOlder llvmVersion "23") [
+        # clang++: error: unknown argument: '-fsanitize-ignore-for-ubsan-feature=array-bounds'
+        (fetchpatch {
+          name = "chromium-146-revert-Update-fsanitizer=array-bounds-config.patch";
+          # https://chromium-review.googlesource.com/c/chromium/src/+/7539408
+          url = "https://chromium.googlesource.com/chromium/src/+/acb47d9a6b56c4889a2ed4216e9968cfc740086c^!?format=TEXT";
+          decode = "base64 -d";
+          revert = true;
+          hash = "sha256-WZsN2qm6lX121bDf7SoN75flXtCTmPPpwtHK0ayjkPc=";
+        })
+      ]
+      ++ lib.optionals (versionRange "146" "147") [
+        # Backport CL 7594600 from M147 to fix the following error:
+        #  error[E0277]: the trait bound `LaneCount<N>: SupportedLaneCount` is not satisfied
+        #  --> ../../third_party/rust/chromium_crates_io/vendor/bytemuck-v1/src/pod.rs:152:40
+        (fetchpatch {
+          name = "chromium-146-backport-Remove-now-obsolete-invalid-patch-on-bytemuck-v1.patch";
+          # https://chromium-review.googlesource.com/c/chromium/src/+/7594600
+          url = "https://chromium.googlesource.com/chromium/src/+/90b77efcecb262823fadb67b0ce218846cd9e756^!?format=TEXT";
+          decode = "base64 -d";
+          hash = "sha256-iDhDdVscy0tinQCRKXOghrn4ZRwlc8YjPZ0xPv0UMEU=";
+        })
+      ]
+      ++ lib.optionals (chromiumVersionAtLeast "147" && lib.versionOlder llvmVersion "23") [
+        # clang++: error: unknown argument: '-fno-lifetime-dse'
+        ./patches/chromium-147-llvm-22.patch
+      ]
+      ++ lib.optionals (chromiumVersionAtLeast "148" && lib.versionOlder llvmVersion "23") [
+        # clang++: error: unknown argument: '-fsanitize-ignore-for-ubsan-feature=return'
+        (fetchpatch {
+          name = "chromium-148-revert-build-Add--fsanitizer=return-config.patch";
+          # https://chromium-review.googlesource.com/c/chromium/src/+/7629257
+          url = "https://chromium.googlesource.com/chromium/src/+/99ba1f5302f9433efdb4df302cb7b7de56c72e4c^!?format=TEXT";
+          decode = "base64 -d";
+          revert = true;
+          hash = "sha256-/qzzxwTdPMwIdsqD/G02S7kKHCj3QxECL+g1WYEaWmU=";
+        })
+        # ERROR Unresolved dependencies.
+        # //apps:apps(//build/toolchain/linux/unbundle:default)
+        #   needs //build/config/compiler:sanitize_return(//build/toolchain/linux/unbundle:default)
+        (fetchpatch {
+          name = "chromium-148-revert-build-Enable--fsanitizer=return-config.patch";
+          # https://chromium-review.googlesource.com/c/chromium/src/+/7629258
+          url = "https://chromium.googlesource.com/chromium/src/+/9357bfbea03753fe52264c9ec36abe74f48cfef5^!?format=TEXT";
+          decode = "base64 -d";
+          revert = true;
+          hash = "sha256-14fTHNh3vGsf4KgeH8uLX+aK3lrjK0VKd1dfK1g7r0I=";
+        })
+        # [33377/55552] LINK ./mksnapshot
+        # ld.lld: error: undefined symbol: __sanitizer_set_death_callback
+        (fetchpatch {
+          name = "archlinux-chromium-146-drop-unknown-clang-flag.patch";
+          url = "https://gitlab.archlinux.org/archlinux/packaging/packages/chromium/-/raw/148.0.7778.96-1/chromium-146-drop-unknown-clang-flag.patch";
+          hash = "sha256-jR0G9z2R8VGl2tkB3u0368RyWM1J6qYXqNWwKkYd5zU=";
+        })
+      ]
+      ++ lib.optionals (chromiumVersionAtLeast "148") [
+        # ninja: error: '../../third_party/rust-toolchain/bin/rustc', needed by 'phony/default_for_rust_host_build_tools_rust_bin_inputs', missing and no known rule to make it
+        (fetchpatch {
+          name = "chromium-148-revert-Reland-build-use-tool-inputs-instead-of-siso-config-for-rust-actions.patch";
+          # https://chromium-review.googlesource.com/c/chromium/src/+/7719879
+          url = "https://chromium.googlesource.com/chromium/src/+/9193ab90af24c23ee983e0a8da9bed45712f0d26^!?format=TEXT";
+          decode = "base64 -d";
+          revert = true;
+          hash = "sha256-7xg8IZ2gO+Wtnv7lWLVE3lLpcmMgvtDtcWwUuMBzkrE=";
+        })
+      ];
 
     patchFlags = [ "--force" ];
 
