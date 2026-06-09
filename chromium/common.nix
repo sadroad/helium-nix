@@ -512,7 +512,7 @@ let
         # allowing us to use our rustc and our clang.
         ./patches/chromium-140-rust.patch
       ]
-      ++ lib.optionals (chromiumVersionAtLeast "141") [
+      ++ lib.optionals (chromiumVersionAtLeast "141" && helium-patches == null) [
         # Rebased variant of the patch above due to
         # https://chromium-review.googlesource.com/c/chromium/src/+/6897026
         ./patches/chromium-141-rust.patch
@@ -534,14 +534,14 @@ let
           hash = "sha256-PuinMLhJ2W4KPXI5K0ujw85ENTB1wG7Hv785SZ55xnY=";
         })
       ]
-      ++ [
+      ++ lib.optionals (helium-patches == null) [
         # Modify the nodejs version check added in https://chromium-review.googlesource.com/c/chromium/src/+/6334038
         # to look for the minimal version, not the exact version (major.minor.patch). The linked CL makes a case for
         # preventing compilations of chromium with versions below their intended version, not about running the very
         # exact version or even running a newer version.
         ./patches/chromium-136-nodejs-assert-minimal-version-instead-of-exact-match.patch
       ]
-      ++ [
+      ++ lib.optionals (helium-patches == null) [
         (fetchpatch {
           # Unbreak building with Rust 1.89+ which introduced
           # a new mismatched_lifetime_syntaxes lint.
