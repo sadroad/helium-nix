@@ -704,7 +704,7 @@ let
         case "$patch_name" in
           '#'*) continue ;;
           "") continue ;;
-        esac
+          *chromium-widevine*|*bundle-hyphenation-patterns*|*fix-building-without-safebrowsing*) continue ;; 
         echo "Applying Helium patch: $patch_name"
         patch -p1 --ignore-whitespace --fuzz=3 --no-backup-if-mismatch \
           -i "${helium-patches}/patches/$patch_name" \

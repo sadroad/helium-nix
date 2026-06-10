@@ -1,16 +1,37 @@
-{ newScope, lib, fetchFromGitHub, fetchurl, stdenv, buildPackages, pkgsBuildBuild
-, config
-, bashInteractive, gnugrep, coreutils, xdg-utils
-, glib, gtk3, gtk4, adwaita-icon-theme, gsettings-desktop-schemas
-, gn, fetchFromGitiles, libva, pipewire, wayland
-, runCommand, libkrb5, widevine-cdm
-, python3Packages, patch
-, proprietaryCodecs ? true
-, enableWideVine ? false
-, cupsSupport ? true
-, pulseSupport ? config.pulseaudio or stdenv.hostPlatform.isLinux
-, commandLineArgs ? ""
-, pkgs
+{
+  newScope,
+  lib,
+  fetchFromGitHub,
+  fetchurl,
+  stdenv,
+  buildPackages,
+  pkgsBuildBuild,
+  config,
+  bashInteractive,
+  gnugrep,
+  coreutils,
+  xdg-utils,
+  glib,
+  gtk3,
+  gtk4,
+  adwaita-icon-theme,
+  gsettings-desktop-schemas,
+  gn,
+  fetchFromGitiles,
+  libva,
+  pipewire,
+  wayland,
+  runCommand,
+  libkrb5,
+  widevine-cdm,
+  python3Packages,
+  patch,
+  proprietaryCodecs ? true,
+  enableWideVine ? false,
+  cupsSupport ? true,
+  pulseSupport ? config.pulseaudio or stdenv.hostPlatform.isLinux,
+  commandLineArgs ? "",
+  pkgs,
 }:
 
 let
@@ -24,7 +45,7 @@ let
   heliumSrc = fetchFromGitHub {
     owner = "imputnet";
     repo = "helium";
-    rev = heliumVersion;
+    rev = "0.12.5";
     hash = "sha256-B+DUPq3/k3p5seZ4EWs6NbLv9KzhU/b9+7/UfrrTLsc=";
   };
 
@@ -36,7 +57,10 @@ let
 
     dontBuild = true;
 
-    buildInputs = [ python3Packages.python patch ];
+    buildInputs = [
+      python3Packages.python
+      patch
+    ];
 
     installPhase = ''
       mkdir $out
@@ -71,9 +95,9 @@ let
     hash = "sha256-AKhwUPo/lB0E1n+1djmR4LjqOZqItQWrDlbdJj8Ghkw=";
   };
 
-
   chromiumVersionAtLeast = min-version: lib.versionAtLeast upstream-info.version min-version;
-  versionRange = min-version: upto-version:
+  versionRange =
+    min-version: upto-version:
     lib.versionAtLeast upstream-info.version min-version
     && lib.versionOlder upstream-info.version upto-version;
 
@@ -88,7 +112,12 @@ let
       inherit proprietaryCodecs cupsSupport pulseSupport;
       ungoogled = true;
       gnChromium = buildPackages.gn.override upstream-info.deps.gn;
-      inherit helium-patches helium-onboarding helium-ublock helium-search-engines-data;
+      inherit
+        helium-patches
+        helium-onboarding
+        helium-ublock
+        helium-search-engines-data
+        ;
       inherit helium-linux-patches;
     };
 
@@ -103,15 +132,18 @@ let
   sandboxExecutableName = chromium.browser.passthru.sandboxExecutableName;
 
   chromiumWV =
-    let browser = chromium.browser;
-    in if enableWideVine then
+    let
+      browser = chromium.browser;
+    in
+    if enableWideVine then
       runCommand (browser.name + "-wv") { version = browser.version; } ''
         mkdir -p $out
         cp -a ${browser}/* $out/
         chmod u+w $out/libexec/chromium
         cp -a ${widevine-cdm}/share/google/chrome/WidevineCdm $out/libexec/chromium/
       ''
-    else browser;
+    else
+      browser;
 
 in
 llvmStdenv.mkDerivation {
@@ -121,16 +153,30 @@ llvmStdenv.mkDerivation {
   nativeBuildInputs = [ bashInteractive ];
 
   buildInputs = [
-    gsettings-desktop-schemas glib gtk3 gtk4
-    adwaita-icon-theme libkrb5
+    gsettings-desktop-schemas
+    glib
+    gtk3
+    gtk4
+    adwaita-icon-theme
+    libkrb5
   ];
 
-  outputs = [ "out" "sandbox" ];
+  outputs = [
+    "out"
+    "sandbox"
+  ];
 
   buildCommand =
     let
       browserBinary = "${chromiumWV}/libexec/helium/helium";
-      libPath = lib.makeLibraryPath [ libva pipewire wayland gtk3 gtk4 libkrb5 ];
+      libPath = lib.makeLibraryPath [
+        libva
+        pipewire
+        wayland
+        gtk3
+        gtk4
+        libkrb5
+      ];
     in
     ''
       mkdir -p "$out/bin"
