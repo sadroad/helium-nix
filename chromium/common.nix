@@ -696,7 +696,7 @@ let
       })
     ];
 
-    patchFlags = [ "--force" ];
+    patchFlags = [ "-p1" "--force" ];
 
     prePatch = lib.optionalString (helium-patches != null) ''
       # Unpack Helium external deps
