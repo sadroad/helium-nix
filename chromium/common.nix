@@ -968,14 +968,15 @@ let
     # M148 expects compiler_builtins at lib/clang/23/ but we use clang 21.
     # Create a wrapper that provides the expected path.
     llvmCcAndBintoolsWrapped = runCommand "llvmCcAndBintoolsWrapped" { } ''
-      mkdir -p $out/lib/clang/23/lib/x86_64-unknown-linux-gnu
+      targetDir="$out/lib/clang/23/lib/${stdenv.hostPlatform.config}"
+      mkdir -p "$targetDir"
       for lib in ${llvmCcAndBintools}/resource-root/lib/linux/*; do
         base=$(basename "$lib")
-        ln -sf "$lib" "$out/lib/clang/23/lib/x86_64-unknown-linux-gnu/$base"
+        ln -sf "$lib" "$targetDir/$base"
         # Also create bare name (e.g. libclang_rt.builtins.a)
         bare=$(echo "$base" | sed -e 's/-x86_64//' -e 's/-aarch64//')
         if [ "$bare" != "$base" ]; then
-          ln -sf "$lib" "$out/lib/clang/23/lib/x86_64-unknown-linux-gnu/$bare"
+          ln -sf "$lib" "$targetDir/$bare"
         fi
       done
       for f in ${llvmCcAndBintools}/*; do
@@ -1086,17 +1087,18 @@ let
         enable_hangout_services_extension = true;
         ffmpeg_branding = "Chrome";
       }
-      // lib.optionalAttrs stdenv.hostPlatform.isAarch64 {
-        # Enable v4l2 video decoder for hardware acceleratation on aarch64:
-        use_vaapi = false;
-        use_v4l2_codec = true;
-      }
       // lib.optionalAttrs pulseSupport {
         use_pulseaudio = true;
         link_pulseaudio = true;
       }
       // lib.optionalAttrs ungoogled (lib.importTOML ./ungoogled-flags.toml)
       // lib.optionalAttrs (helium-patches != null) (lib.importTOML ../helium-flags.toml)
+      // lib.optionalAttrs stdenv.hostPlatform.isAarch64 {
+        # Enable v4l2 video decoder for hardware acceleration on aarch64.
+        # Must be merged AFTER helium-flags.toml so use_vaapi=false isn't overridden.
+        use_vaapi = false;
+        use_v4l2_codec = true;
+      }
       // (extraAttrs.gnFlags or { })
     );
 
