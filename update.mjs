@@ -4,7 +4,7 @@
 
   Usage:
     node update.mjs                  # Update to latest Helium release
-    node update.mjs 0.13.0           # Update to a specific version
+    node update.mjs 0.15.3           # Update to a specific version
 
   This script:
   1. Fetches the latest Helium release from GitHub
@@ -153,7 +153,11 @@ const ublockUrl = deps.ublock_origin.url.replaceAll("%(version)s", ublockVersion
 const ublockHash = nixHashFile(ublockUrl);
 console.log(`  ublock: ${ublockHash}`);
 
-const searchEnginesUrl = deps.search_engines_data.url;
+const searchEnginesVersion = deps.search_engines_data.version;
+const searchEnginesUrl = deps.search_engines_data.url.replaceAll(
+  "%(version)s",
+  searchEnginesVersion,
+);
 const searchEnginesHash = nixHashFile(searchEnginesUrl);
 console.log(`  search engines: ${searchEnginesHash}`);
 

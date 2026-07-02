@@ -17,6 +17,7 @@
   # Native build inputs:
   ninja,
   bashInteractive,
+  go,
   pkg-config,
   python3,
   perl,
@@ -331,6 +332,9 @@ let
     ++ lib.optionals (!isElectron) [
       nodejs
       npmHooks.npmConfigHook
+    ]
+    ++ lib.optionals (chromiumVersionAtLeast "151") [
+      go # third_party/dawn/tools/generate-sources-gn.py
     ];
 
     depsBuildBuild = [
@@ -472,9 +476,9 @@ let
       # Optional patch to use SOURCE_DATE_EPOCH in compute_build_timestamp.py (should be upstreamed):
       ./patches/no-build-timestamps.patch
     ]
-    ++ lib.optionals (packageName == "chromium") [
-      # This patch is limited to chromium and ungoogled-chromium because electron-source sets
-      # enable_widevine to false.
+    ++ lib.optionals (packageName == "chromium" || packageName == "helium") [
+      # This patch applies to chromium, ungoogled-chromium, and helium.
+      # (electron-source sets enable_widevine to false, hence the guard.)
       #
       # The patch disables the automatic Widevine download (component) that happens at runtime
       # completely (~/.config/chromium/WidevineCdm/). This would happen if chromium encounters DRM
@@ -490,7 +494,7 @@ let
       # BUNDLE_WIDEVINE_CDM build flag does work in the way we want though.
       # We also need enable_widevine_cdm_component to be false. Unfortunately it isn't exposed as gn
       # flag (declare_args) so we simply hardcode it to false.
-      ./patches/widevine-disable-auto-download-allow-bundle.patch
+      ./patches/${lib.optionalString (chromiumVersionAtLeast "150") "chromium-150-"}widevine-disable-auto-download-allow-bundle.patch
     ]
     ++ lib.optionals (!chromiumVersionAtLeast "148") [
       # Required to fix the build with a more recent wayland-protocols version
@@ -520,6 +524,10 @@ let
       # https://chromium-review.googlesource.com/c/chromium/src/+/6897026
       # No longer applies on M148+ — the compiler_builtins block was removed upstream.
       ./patches/chromium-141-rust.patch
+    ]
+    ++ lib.optionals (chromiumVersionAtLeast "150") [
+      # Rebased for https://chromium-review.googlesource.com/c/chromium/src/+/7858711.
+      ./patches/chromium-150-rust.patch
     ]
     ++ lib.optionals (!chromiumVersionAtLeast "145" && stdenv.hostPlatform.isAarch64) [
       # Reverts decommit pooled pages which causes random crashes of tabs on systems
@@ -684,6 +692,9 @@ let
       #       |         ^~~~~
       ./patches/chromium-149-use-of-undeclared-identifier-ERROR.patch
     ]
+    ++ lib.optionals (chromiumVersionAtLeast "151") [
+      ./patches/chromium-151-dawn-use-Go-from-PATH.patch
+    ]
     ++ lib.optionals (versionRange "148" "149" && helium-patches == null) [
       # ninja: error: '../../third_party/rust-toolchain/bin/rustc', needed by 'phony/default_for_rust_host_build_tools_rust_bin_inputs', missing and no known rule to make it
       (fetchpatch {
@@ -804,11 +815,11 @@ let
           build/config/compiler/BUILD.gn
         # Disable array-bounds UBSan (requires LLVM 23 flags):
         sed -i '/ubsan_hardening("c_array_bounds")/,/^}/{
-          s/condition = !(is_asan && target_cpu == "x86")/condition = false/
+          s/condition = .*/condition = false/
         }' build/config/compiler/BUILD.gn
         # Disable return UBSan (requires LLVM 23 flags):
         sed -i '/ubsan_hardening("return")/,/^}/{
-          /sanitizer = "return"/a\  condition = false
+          s/condition = .*/condition = false/
         }' build/config/compiler/BUILD.gn
       ''
       + lib.optionalString (chromiumVersionAtLeast "149") ''
@@ -1042,8 +1053,8 @@ let
         use_gio = true;
         use_cups = cupsSupport;
       }
-      // lib.optionalAttrs (packageName == "chromium") {
-        # Enabling the Widevine here doesn't affect whether we can redistribute the chromium package.
+      // lib.optionalAttrs (packageName == "chromium" || packageName == "helium") {
+        # Enabling the Widevine here doesn't affect whether we can redistribute the package.
         # Widevine in this drv is a bit more complex than just that. See Widevine patch somewhere above.
         enable_widevine = true;
       }
@@ -1057,6 +1068,10 @@ let
       // lib.optionalAttrs (chromiumVersionAtLeast "141") {
         # TODO: remove opt-out of https://chromium.googlesource.com/chromium/src/+/main/docs/modules.md
         use_clang_modules = false;
+      }
+      // lib.optionalAttrs (chromiumVersionAtLeast "150") {
+        # Unified system modules try to enumerate headers under /usr/include.
+        use_unified_system_module = false;
       }
       // {
         use_qt5 = false;
@@ -1154,6 +1169,7 @@ let
     env.BUILD_AR = "$AR_FOR_BUILD";
     env.BUILD_NM = "$NM_FOR_BUILD";
     env.BUILD_READELF = "$READELF_FOR_BUILD";
+    env.NIX_LD_USE_RESPONSE_FILE = lib.optionalString (chromiumVersionAtLeast "150") "1";
 
     buildPhase =
       let
