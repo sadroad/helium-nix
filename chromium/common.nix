@@ -472,9 +472,9 @@ let
       # Optional patch to use SOURCE_DATE_EPOCH in compute_build_timestamp.py (should be upstreamed):
       ./patches/no-build-timestamps.patch
     ]
-    ++ lib.optionals (packageName == "chromium") [
-      # This patch is limited to chromium and ungoogled-chromium because electron-source sets
-      # enable_widevine to false.
+    ++ lib.optionals (packageName == "chromium" || packageName == "helium") [
+      # This patch applies to chromium, ungoogled-chromium, and helium.
+      # (electron-source sets enable_widevine to false, hence the guard.)
       #
       # The patch disables the automatic Widevine download (component) that happens at runtime
       # completely (~/.config/chromium/WidevineCdm/). This would happen if chromium encounters DRM
@@ -1042,8 +1042,8 @@ let
         use_gio = true;
         use_cups = cupsSupport;
       }
-      // lib.optionalAttrs (packageName == "chromium") {
-        # Enabling the Widevine here doesn't affect whether we can redistribute the chromium package.
+      // lib.optionalAttrs (packageName == "chromium" || packageName == "helium") {
+        # Enabling the Widevine here doesn't affect whether we can redistribute the package.
         # Widevine in this drv is a bit more complex than just that. See Widevine patch somewhere above.
         enable_widevine = true;
       }
