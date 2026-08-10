@@ -35,8 +35,8 @@
 }:
 
 let
-  heliumVersion = "0.15.3";
-  chromiumVersion = "151.0.7922.108";
+  heliumVersion = "0.20.1";
+  chromiumVersion = "156.0.8078.47";
 
   llvmStdenv = pkgs.rustc.llvmPackages.stdenv;
 
@@ -46,7 +46,7 @@ let
     owner = "imputnet";
     repo = "helium";
     rev = heliumVersion;
-    hash = "sha256-MG53ZgAk+pSh4Kqo7gfSfDbruQa/cdP2IjHHbuCLnyQ=";
+    hash = "sha256-3wAscj2zS/dbat8n3LFKTPKwp9MCDrQ+UQZY/2htXJ4=";
   };
 
   helium-patches = llvmStdenv.mkDerivation {
@@ -75,8 +75,8 @@ let
   helium-linux-src = fetchFromGitHub {
     owner = "imputnet";
     repo = "helium-linux";
-    rev = "ec3a4ed2df3102c81a92257bafb1bc9c65e33fde"; # helium-linux 0.15.3.1
-    hash = "sha256-lWKAFW4ZBwYXyrBhdoR+fTL597M6lRts9zq6m59To8A=";
+    rev = "473c0f72d7db2e8492f0fa975b8544bc719bb027"; # helium-linux 0.20.1.1
+    hash = "sha256-mHzDrZ9lA3hXDV8UIdqmmLjmrdTS6Vsc8CCgWcQWdTM=";
   };
   helium-linux-patches = "${helium-linux-src}/patches/helium/linux";
 
@@ -85,18 +85,18 @@ let
   };
 
   helium-onboarding = fetchurl {
-    url = "https://github.com/imputnet/helium-onboarding/releases/download/202607301504/helium-onboarding-202607301504.tar.gz";
-    hash = "sha256-2jA7mUYckkZPB7a+1nFmwtNyq6+bOgm7c+OGTQy+aQo=";
+    url = "https://github.com/imputnet/helium-onboarding/releases/download/202610161403/helium-onboarding-202610161403.tar.gz";
+    hash = "sha256-s13m3reeCGT1Ogpw6ogZzs1GhDo7BRiiDdamt9JpAKw=";
   };
 
   helium-ublock = fetchurl {
-    url = "https://github.com/imputnet/uBlock/releases/download/1.72.2/uBlock0_1.72.2.chromium.zip";
-    hash = "sha256-bqEKhj6zQ93MMX/dqcZcyyeZx00N4GrXWt7QTTjWPco=";
+    url = "https://github.com/imputnet/uBlock/releases/download/1.75.0/uBlock0_1.75.0.chromium.zip";
+    hash = "sha256-SSFGdPfGxHTmDaZHwFvShGOx96VbKisKU+nSl+9788Y=";
   };
 
   helium-search-engines-data = fetchurl {
-    url = "https://github.com/imputnet/helium-nonfree-assets/releases/download/202607242007/nonfree-search-engines-data-202607242007.tar.gz";
-    hash = "sha256-4U+ls4ztFa5RYUPaI+3Lpgjupj5UlgFzrogp8I7/+1g=";
+    url = "https://github.com/imputnet/helium-nonfree-assets/releases/download/202609082320/nonfree-search-engines-data-202609082320.tar.gz";
+    hash = "sha256-Ko1jr0FFREbWS7Xxl4bZCEGSZfFSra/whxMtjgzaUac=";
   };
 
   chromiumVersionAtLeast = min-version: lib.versionAtLeast upstream-info.version min-version;

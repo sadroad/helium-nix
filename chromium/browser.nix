@@ -9,6 +9,7 @@
 let
   # https://chromium-review.googlesource.com/c/chromium/src/+/7253206
   ifElseM145 = new: old: if chromiumVersionAtLeast "145" then new else old;
+  ifElseM156 = new: old: if chromiumVersionAtLeast "156" then new else old;
 in
 
 mkChromiumDerivation (base: rec {
@@ -68,14 +69,11 @@ mkChromiumDerivation (base: rec {
 
     substituteInPlace $out/share/applications/helium.desktop \
       --replace-fail "${ifElseM145 "@@MENUNAME" "@@MENUNAME@@"}" "Helium" \
-      --replace-fail "${ifElseM145 "@@PACKAGE" "@@PACKAGE@@"}" "helium" \
-      --replace-fail "${ifElseM145 "/usr/bin/@@usr_bin_symlink_name" "/usr/bin/@@USR_BIN_SYMLINK_NAME@@"}" "helium" \
+      --replace-fail "${ifElseM156 "@@desktop_icon" (ifElseM145 "@@PACKAGE" "@@PACKAGE@@")}" "helium" \
+      --replace-fail "${ifElseM156 "@@desktop_exec" (ifElseM145 "/usr/bin/@@usr_bin_symlink_name" "/usr/bin/@@USR_BIN_SYMLINK_NAME@@")}" "helium" \
       --replace-fail "${ifElseM145 "@@uri_scheme" "@@URI_SCHEME@@"}" "x-scheme-handler/helium;" \
+      --replace-fail "@@startup_wm_class" "helium-browser" \
       --replace-fail "${ifElseM145 "@@extra_desktop_entries" "@@EXTRA_DESKTOP_ENTRIES@@"}" ""
-
-    # See https://github.com/NixOS/nixpkgs/issues/12433
-    substituteInPlace $out/share/applications/helium.desktop \
-      --replace-fail "[Desktop Entry]" "[Desktop Entry]''\nStartupWMClass=helium-browser"
 
     if grep -F '@@' $out/share/applications/helium.desktop ; then
       echo "error: helium.desktop contains unsubstituted placeholders" >&2

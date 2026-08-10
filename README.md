@@ -4,7 +4,7 @@ Helium browser, packaged from source for Nix/NixOS.
 
 Built on nixpkgs' Chromium infrastructure. Helium replaces the ungoogled patch layer with its own patch stack (ungoogled + Brave, Cromite, Inox, Iridium, Bromite, Debian patches + Manifest V2 support).
 
-**Helium 0.15.3 / Chromium 151.0.7922.108**
+**Helium 0.20.1 / Chromium 156.0.8078.47**
 
 ## Install
 
@@ -224,7 +224,7 @@ nix build
 
 ```bash
 node update.mjs              # latest release
-node update.mjs 0.15.3       # specific version
+node update.mjs 0.20.1       # specific version
 ```
 
 Updates `default.nix` with new version, hashes, and deps. If the Chromium base version changed, it'll tell you to also update `info.json` using the chromium update script.
