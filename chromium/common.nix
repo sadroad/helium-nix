@@ -6,6 +6,7 @@
   zstd,
   fetchFromGitiles,
   fetchNpmDeps,
+  fetchzip,
   callPackage,
   rustPlatform,
   buildPackages,
@@ -162,6 +163,13 @@ let
     in
     attrs: lib.concatStringsSep " " (lib.attrValues (lib.mapAttrs toFlag attrs));
 
+  # Our libxslt is vulnerable to [CVE-2026-125350] (zero-day) and other CVEs the vendored
+  # version in chromium carries [patches] for.
+  #
+  # [CVE-2026-125350]: https://chromium-review.googlesource.com/c/chromium/src/+/8762073
+  # [patches]: https://chromium.googlesource.com/chromium/src/+/refs/tags/157.0.8103.50/third_party/libxslt/chromium/
+  withSystemXslt = isElectron;
+
   # https://source.chromium.org/chromium/chromium/src/+/master:build/linux/unbundle/replace_gn_files.py
   gnSystemLibraries = [
     # TODO:
@@ -180,8 +188,12 @@ let
     # //third_party/libavif:libavif_enc(//build/toolchain/linux/unbundle:default)
     #   needs //third_party/libwebp:libwebp_sharpyuv(//build/toolchain/linux/unbundle:default)
     # "libwebp"
+  ]
+  ++ lib.optionals withSystemXslt [
     "libxml"
     "libxslt" # depends on libxml, always remove or re-add as a pair
+  ]
+  ++ [
     # "opus"
   ];
 
@@ -298,6 +310,16 @@ let
     ) chromiumDeps
   );
 
+  # FIXME: We can't use fetchNpmDeps for third_party/devtools-frontend because of:
+  # "warning: 755 out of 759 packages (99.5%) are missing 'resolved' URLs and will not be cached."
+  npmDeps_devtools-frontend = fetchzip {
+    # https://chromium.googlesource.com/devtools/devtools-frontend/+/047c90eca37c7170d826d72245d5df9281989cf3/DEPS#273
+    url = "https://commondatastorage.googleapis.com/chromium-nodejs/devtools-frontend/c67f72622077f8d20a0d641e63f95772120577b846ace3e3d434db9f13188350";
+    extension = "tar.gz";
+    stripRoot = false;
+    hash = "sha256-mNnTa+1IcJzCDV7rrpgQ2XabvcO6b/ltr8o09UXeZhY=";
+  };
+
   base = rec {
     pname = "${lib.optionalString ungoogled "ungoogled-"}${packageName}-unwrapped";
     inherit (upstream-info) version;
@@ -316,10 +338,16 @@ let
     npmDeps =
       (fetchNpmDeps {
         src = chromiumDeps."src";
-        sourceRoot = npmRoot;
+        sourceRoot =
+          lib.optionalString (!chromiumDeps."src".unpack or false) "${chromiumDeps."src".name}/" + npmRoot;
         hash = upstream-info.deps.npmHash;
       }).overrideAttrs
         (p: {
+          # TODO: npmRegistryOverridesString does not appear to work for airlock-proxy.uplink.goog:999
+          postPatch = lib.optionalString (chromiumVersionAtLeast "157") ''
+            substituteInPlace package-lock.json \
+              --replace-fail "http://airlock-proxy.uplink.goog:999/npm/artifact-foundry-prod/ah-3p-staging-npm/" "https://registry.npmjs.org/"
+          '';
           nativeBuildInputs = p.nativeBuildInputs or [ ] ++ [ zstd ];
         });
 
@@ -378,8 +406,12 @@ let
       libusb1
       re2
       ffmpeg
+    ]
+    ++ lib.optionals withSystemXslt [
       libxslt
       libxml2
+    ]
+    ++ [
       nasm
       nspr
       nss
@@ -438,8 +470,12 @@ let
       libusb1
       re2
       ffmpeg
+    ]
+    ++ lib.optionals withSystemXslt [
       libxslt
       libxml2
+    ]
+    ++ [
       nasm
       nspr
       nss
@@ -693,7 +729,7 @@ let
         ]
     # M149 LLVM 22 compat: handled via postPatch sed instead of patch file
     # (patch would have line-offset issues with prePatch-applied helium patches)
-    ++ lib.optionals (chromiumVersionAtLeast "149" && stdenv.hostPlatform.isAarch64) [
+    ++ lib.optionals (versionRange "149" "158" && stdenv.hostPlatform.isAarch64) [
       # [43731/56364] CXX obj/media/gpu/sandbox/sandbox/hardware_video_decoding_sandbox_hook_linux.o
       # FAILED: [code=1] obj/media/gpu/sandbox/sandbox/hardware_video_decoding_sandbox_hook_linux.o
       # clang++ -MD -MF obj/media/gpu/sandbox/sandbox/hardware_video_decoding_sandbox_hook_linux.o.d [...]
@@ -1004,6 +1040,14 @@ let
 
         ${lib.getExe buildPackages.rustc} -V > third_party/rust-toolchain/VERSION
       ''
+      + lib.optionalString (chromiumVersionAtLeast "158") ''
+        cp -r ${npmDeps_devtools-frontend} third_party/devtools-frontend/src/node_modules
+        patchShebangs third_party/devtools-frontend/src/node_modules
+      ''
+      + lib.optionalString (!isElectron && chromiumVersionAtLeast "157") ''
+        substituteInPlace third_party/node/package-lock.json \
+          --replace-fail "http://airlock-proxy.uplink.goog:999/npm/artifact-foundry-prod/ah-3p-staging-npm/" "https://registry.npmjs.org/"
+      ''
       +
         lib.optionalString (stdenv.hostPlatform == stdenv.buildPlatform && stdenv.hostPlatform.isAarch64)
           ''
@@ -1157,8 +1201,13 @@ let
         # Unified system modules try to enumerate headers under /usr/include.
         use_unified_system_module = false;
       }
-      // lib.optionalAttrs (chromiumVersionAtLeast "155") {
+      // lib.optionalAttrs (versionRange "155" "157") {
+        # https://chromium-review.googlesource.com/c/v8/v8/+/8365609
         v8_use_metagen_instance_types = false;
+      }
+      // lib.optionalAttrs (chromiumVersionAtLeast "157") {
+        # https://chromium-review.googlesource.com/c/v8/v8/+/8524366
+        v8_use_metagen = false;
       }
       // {
         use_qt5 = false;

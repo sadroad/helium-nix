@@ -4,7 +4,7 @@
 
   Usage:
     node update.mjs                  # Update to latest Helium release
-    node update.mjs 0.20.1           # Update to a specific version
+    node update.mjs 0.22.2           # Update to a specific version
 
   This script:
   1. Fetches the latest Helium release from GitHub

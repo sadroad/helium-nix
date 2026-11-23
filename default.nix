@@ -35,8 +35,8 @@
 }:
 
 let
-  heliumVersion = "0.20.1";
-  chromiumVersion = "156.0.8078.47";
+  heliumVersion = "0.22.2";
+  chromiumVersion = "158.0.8127.36";
 
   llvmStdenv = pkgs.rustc.llvmPackages.stdenv;
 
@@ -46,7 +46,7 @@ let
     owner = "imputnet";
     repo = "helium";
     rev = heliumVersion;
-    hash = "sha256-3wAscj2zS/dbat8n3LFKTPKwp9MCDrQ+UQZY/2htXJ4=";
+    hash = "sha256-5APta4fG1wKrGO3ImiluniW2aCAYZKMqPnmeRflOH/Q=";
   };
 
   helium-patches = llvmStdenv.mkDerivation {
@@ -75,8 +75,8 @@ let
   helium-linux-src = fetchFromGitHub {
     owner = "imputnet";
     repo = "helium-linux";
-    rev = "473c0f72d7db2e8492f0fa975b8544bc719bb027"; # helium-linux 0.20.1.1
-    hash = "sha256-mHzDrZ9lA3hXDV8UIdqmmLjmrdTS6Vsc8CCgWcQWdTM=";
+    rev = "d77f716db31b6009e88c75ce94d5a2bf21794286"; # helium-linux 0.22.2.1
+    hash = "sha256-5G0toyIrhGxDM3/TcHO6ppL7Jt29ttgytSnr8uChH2U=";
   };
   helium-linux-patches = "${helium-linux-src}/patches/helium/linux";
 
@@ -90,8 +90,8 @@ let
   };
 
   helium-ublock = fetchurl {
-    url = "https://github.com/imputnet/uBlock/releases/download/1.75.0/uBlock0_1.75.0.chromium.zip";
-    hash = "sha256-SSFGdPfGxHTmDaZHwFvShGOx96VbKisKU+nSl+9788Y=";
+    url = "https://github.com/imputnet/uBlock/releases/download/1.76.4/uBlock0_1.76.4.chromium.zip";
+    hash = "sha256-QkO1uywNaZR51IGAsC+N272uyeicIRW8tyXFT/IL9/0=";
   };
 
   helium-search-engines-data = fetchurl {

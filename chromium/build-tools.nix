@@ -1,5 +1,5 @@
 {
-  fetchpatch,
+  lib,
   fetchFromGitHub,
   fetchFromGitiles,
   rustPlatform,
@@ -12,31 +12,17 @@
 }:
 
 {
-  # Match tools/rust/update_rust.py in Chromium 156.0.8078.47.
+  # Match tools/rust/update_rust.py in Chromium 158.0.8127.36.
   crubit = rustPlatform.buildRustPackage (finalAttrs: {
     pname = "crubit";
-    version = "0-unstable-2026-09-11";
+    version = "0-unstable-2026-10-15";
 
     src = fetchFromGitiles {
       url = "https://chromium.googlesource.com/external/github.com/google/crubit.git";
-      rev = "a355b02da81bc9f350925c73ec0322ce4d5140f1";
-      hash = "sha256-Z2wsYe2Tln+CeAV9naC1QRnmvrz3HZXF06cNIp1RqU4=";
+      rev = "d757594f6f7ac27c0cf9c8ea63d9136f8e1f77ae";
+      hash = "sha256-0I3zO0Kit6Cu2AuEXJ7Gr1wa5tVlvS+b8kw3NUBfvns=";
     };
-    cargoHash = "sha256-5EB6yTk+eGffjUK/TXf6ZxCU0p05Dh1nL8q3Nl6TiiY=";
-
-    patches = [
-      (fetchpatch {
-        name = "partial-rustfmt.patch";
-        url = "https://github.com/google/crubit/commit/3ed0fa613223e09172e22363953f6587fe5d8bb7.patch";
-        includes = [ "cc_bindings_from_rs/rustversion_impl.rs" ];
-        hash = "sha256-+JMYo6ujPF4lQNUUAXwV6D2A4Ss39y8fh+V9lv8BZ2I=";
-      })
-      (fetchpatch {
-        name = "fix-rust-1.99-compat.patch";
-        url = "https://github.com/google/crubit/commit/943b515b25ca3868050b3ea3410b0b979ccc28a2.patch";
-        hash = "sha256-pgoAX+pjliRM230w2GS07hbrR2USe5heQP4ETjiacrA=";
-      })
-    ];
+    cargoHash = "sha256-yp57PHbCMy4YDXfsqdt9ZPSL5ZDYylM2DQxQYJng7fA=";
 
     buildInputs = [ buildPackages.rustc.llvmPackages.llvm ];
     cargoBuildFlags = [
@@ -49,9 +35,10 @@
 
   gnrt = rustPlatform.buildRustPackage (finalAttrs: {
     pname = "gnrt";
-    version = "156.0.8078.47";
+    version = "158.0.8127.36";
     src = chromiumSrc;
-    sourceRoot = "tools/crates/gnrt";
+    # The Chromium source is no longer recompressed into a tarball since M158.
+    sourceRoot = lib.optionalString (!chromiumSrc.unpack or false) "${chromiumSrc.name}/" + "tools/crates/gnrt";
 
     cargoDeps = rustPlatform.fetchCargoVendor {
       inherit (finalAttrs)
